@@ -14,11 +14,19 @@ from lmfit import Model
 from scipy import integrate
 from scipy.special import erfc
 from uncertainties.core import wrap
+import sched
+schedule = sched.scheduler(time.time, time.sleep)
+eventList = []
 
 class grafit(tk.Frame):
-    
-    def plotit(self):
+    def updateShutter(self, shutterState):
+        if shutterState == True:
+             print("shutter is Closed")
+        else:
+            print("shutter is Opened")
+        return
 
+    def captureRaw(self):
         data = ''
         f = urllib.request.urlopen('http://localhost:5022/?COMMAND=curve?')
         #f = urllib.request.urlopen('http://134.79.229.21/?COMMAND=curve?')
@@ -39,10 +47,29 @@ class grafit(tk.Frame):
         t = [ 1.0e6*(float(wfmpre.split(';')[8])*float(i)+float(wfmpre.split(';')[10])) for i in range(0,len(wfm)) ]
         volt = [ 1.0e3*(( (dl/256) - float(wfmpre.split(';')[14]) )*float(wfmpre.split(';')[12]) - float(wfmpre.split(';')[13])) for dl in wfm ]
 
-        if self.ctr % 2 == 1:
-            self.topHat = np.array(volt)
-        else:
-            self.nontopHat = np.array(volt)
+        return zip(t, volt)
+    
+    def conditionWVF(self, signalBgd, background):
+        
+        return signalBgd - background
+    
+    def calcTAU(self, t, volt):
+        result = self.wavmodel.fit(wvPlot,self.wavparams,x=t)
+        # print('results--->', result.ci_out)
+
+        # result = self.wavmodel.fit(wvPlot[t<150],self.wavparams,x=t[t<150])
+        b = result.best_values
+        # errors = result.ci_out
+        tfine = np.arange(t[0],t[-1]+0.8,(t[1]-t[0])/10.0)
+
+        ci_txt = result.ci_report()
+
+        cat = float(ci_txt.split('\n')[1].split('  ')[4])
+        an = float(ci_txt.split('\n')[2].split('  ')[4])
+
+        return
+
+    def plotit(self):
 
         # print(f"t: {len(t)}")
         # print(f"volt: {len(volt)}")
@@ -77,19 +104,7 @@ class grafit(tk.Frame):
             # Waveform to plot
             print(len(self.topHat), len(self.nontopHat)) 
             wvPlot = self.topHat - self.nontopHat
-            result = self.wavmodel.fit(wvPlot,self.wavparams,x=t)
-            # print('results--->', result.ci_out)
-
-            # result = self.wavmodel.fit(wvPlot[t<150],self.wavparams,x=t[t<150])
-            b = result.best_values
-            # errors = result.ci_out
-            tfine = np.arange(t[0],t[-1]+0.8,(t[1]-t[0])/10.0)
-
-            ci_txt = result.ci_report()
-
-            cat = float(ci_txt.split('\n')[1].split('  ')[4])
-            an = float(ci_txt.split('\n')[2].split('  ')[4])
-
+            
             print('cat and an', cat, an)
 
             self.xar.append((time.time() - self.start_time)/3600)
@@ -154,7 +169,7 @@ class grafit(tk.Frame):
         # print('Value of exc',exc)
         # os._exit(0)    
         print('Getting here---> plotit')
-        self.parent.after(1000,self.plotit)
+        # self.parent.after(1000,self.plotit)
 
    
     def on_closing(self):
@@ -268,7 +283,20 @@ class grafit(tk.Frame):
 
         # self.plotter = threading.Thread(target=self.plotit)
         # self.plotter.setDaemon(True) # MAKES CODE THREAD SAFE
-    
+
+def startSchedule():
+    schedule.run()
+
+    return
+
+def fitScheduler(plotit):
+    #
+    # populate schedule
+
+    schedule.enter(0,1, plotit) 
+    schedule.enter(10,1, plotit)
+    return schedule.queue
+        
 class onlineXPMFitter(tk.Tk):
     """ Class instance of main/root window. Mainly responsible for showing the
         core components and setting other properties related to the main window."""
@@ -282,11 +310,16 @@ class onlineXPMFitter(tk.Tk):
         # Optional TODO: Set a custom icon for the XPM application
         # tk.Tk.iconbitmap(self, default="[example].ico")
 
-        # Show window and control bar
+       # Show window and control bar
         self.graph = grafit(self)
         # self.graph.pack(side='top', fill='both', expand=True)
 
+       
+
 root = onlineXPMFitter()
 root.graph.plotit()
+fitScheduler(root.graph.plotit)
+scheduThread = threading.Thread(target=startSchedule)
+scheduThread.start()
 root.mainloop()
 
