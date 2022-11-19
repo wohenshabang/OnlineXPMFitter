@@ -124,9 +124,14 @@ class grafit(tk.Frame):
             # self.plt.subplot(211)
             self.plt2.errorbar( self.xar, self.yar , [self.el, self.eh] , markersize=6, fmt='ro')
             self.plt2.set_title("$e^{-}$ Lifetime vs Time")
-            self.plt2.set_ylabel('$\tau$')
+            self.plt2.set_ylabel('$\\tau$($\mu$s)')
+            self.plt2.set_yticklabels(['{:1.1e}'.format(x) for x in self.plt2.get_yticks()])
             self.plt2.set_xlabel('Time (h)')
-
+            #self.plt2.set_ylim(0.0,2.0e4)
+            #self.plt2.tick_params(axis='both',which='major',labelsize=9)
+            #self.plt2.tick_params(axis='both',which='minor',labelsize=9)
+            #self.figure1.tight_layout()
+            self.figure2.tight_layout()
             # PLOTTING WAVEFORM:
             # self.plt.subplot(212)
             self.plt1.plot(t,wvPlot,'go-')
@@ -193,7 +198,7 @@ class grafit(tk.Frame):
         tk.Frame.__init__(self, parent)
 
         # Set up figure and plot
-        self.figure = Figure(figsize=(3, 5), dpi=100)
+        self.figure = Figure(figsize=(6, 5), dpi=100)
         self.plt = self.figure.add_subplot(111)
 
         # Create parent, which is the class Simulator from down below
@@ -247,8 +252,8 @@ class grafit(tk.Frame):
         # self.window.title('Fiber Alignment Tool')
         # self.fig = plt.figure(1)
         # self.fig.text(0.5,0.04,'LOADING...',ha ='center',va = 'center')
-        self.figure1 = Figure(figsize=(3, 5), dpi=100)
-        self.figure2 = Figure(figsize=(3, 5), dpi=100)
+        self.figure1 = Figure(figsize=(6, 5), dpi=100)
+        self.figure2 = Figure(figsize=(6, 5), dpi=100)
         self.plt1 = self.figure1.add_subplot(111)
         self.plt2 = self.figure2.add_subplot(111)
 
