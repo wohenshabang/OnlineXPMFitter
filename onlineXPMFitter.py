@@ -82,17 +82,20 @@ class grafit(tk.Frame):
         print('received ' + data)
 
 
+        dataToFile = []
+        for i in range( 17):
+            dataToFile.append('NONE')
 
         # here we check if the save file has been defined, if so write to it, if not state that it is not set
-        try:
-            saveFile
-            if not saveFile.closed:
-                print('Writing data to save file')
-                saveFile.write(data)
-            else:
-                print('Save file has been closed')
-        except NameError:
-            print('Save file is not set')
+        #try:
+        #    saveFile
+        #    if not saveFile.closed:
+        #        print('Writing data to save file')
+        #        #saveFile.write(data)
+        #    else:
+        #        print('Save file has been closed')
+        #except NameError:
+        #    print('Save file is not set')
 
 
 
@@ -164,6 +167,12 @@ class grafit(tk.Frame):
 
             print('cat and an', cat, an)
 
+
+
+            # adding data to list that gets printed to file ( columns 5 and 6)
+            dataToFile[ 4] = cat
+            dataToFile[ 5] = an
+
             self.xar.append((time.time() - self.start_time) / 3600)
             self.yar.append((81.9 - 10.0) / np.log(cat / an))
 
@@ -178,6 +187,19 @@ class grafit(tk.Frame):
             an_ul = float(ci_txt.split('\n')[2].split('  ')[6]) + float(ci_txt.split('\n')[2].split('  ')[5])
             upper_bound = -(81.9 - 10.0) / np.log(an_ul / cat_ll)
             lower_bound = -(81.9 - 10.0) / np.log(an_ll / cat_ul)
+
+
+
+
+	    # we are appending the data to the row which will be written to the file
+	    # col 14 in file is 'cat_ll', first part before '+'
+	    
+            dataToFile[ 13] = float(ci_txt.split('\n')[1].split('  ')[4])
+            dataToFile[ 14] = float(ci_txt.split('\n')[1].split('  ')[6])
+            dataToFile[ 15] = float(ci_txt.split('\n')[2].split('  ')[4])
+            dataToFile[ 16] = float(ci_txt.split('\n')[2].split('  ')[6])
+
+
 
             # self.yar.append(yvar)
 
@@ -234,6 +256,26 @@ class grafit(tk.Frame):
         # os._exit(0)
         print('Getting here---> plotit')
         self.parent.after(1000, self.plotit)
+	
+	
+	
+	
+
+        # here we check if the save file has been defined, if so write to it, if not state that it is not set
+        try:
+            saveFile
+            if not saveFile.closed:
+                print('Writing data to save file')
+                #try:
+                #    dataToFile
+                #    if dataToFile.
+                saveData = str( ', '.join( str(i) for i in dataToFile)) + '\n'
+                saveFile.write(saveData)
+            else:
+                print('Save file has been closed')
+        except NameError:
+            print('Save file is not set')
+
 
     '''
     def plotit(self):
