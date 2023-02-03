@@ -7,6 +7,7 @@ class app(tk.Frame):
     def __init__(self, parent):
         tk.Frame.__init__(self, parent)
 
+        # textbox for IP address entry & request button that calls 'make_request'
         self.url_entry = tk.Text(height=1, width=30, bg='blue')
         self.url_entry.grid(row=1, column=1)
         self.req_button = tk.Button(text="Make Request", command=self.make_request)
@@ -14,6 +15,7 @@ class app(tk.Frame):
 
 
     def make_request(self):
+        # reads contents of 'url_entry' field and makes request
         url = self.url_entry.get('1.0', 'end-1c')
         #response = requests.get(url)
         print(url)
@@ -26,6 +28,7 @@ class waveCapture(tk.Tk):
     def __init__(self):
         tk.Tk.__init__(self)
 
+        # basic setup of application
         tk.Tk.wm_title(self, 'Waveform Capture')
         tk.Tk.minsize(self, width=640, height=320)
 

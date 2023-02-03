@@ -11,7 +11,7 @@ New application
 - make an application that 
 - field to enter data path for saving
 - saving waveform data
-- connects over ethernet to oscilloscope ( IP address) ( field for this)
+- connects to oscilloscope ( IP address) ( field for this)
 - sends HTTP requests to oscilloscope for waveform preamble and waveform
 - use waveform preamble to convert waveform into a collumn of times and a column of voltages
 - each row has time, voltage
