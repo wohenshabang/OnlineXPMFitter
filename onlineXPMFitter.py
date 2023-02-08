@@ -8,6 +8,7 @@ from matplotlib.figure import Figure
 from matplotlib.backends.backend_tkagg import (FigureCanvasTkAgg, NavigationToolbar2Tk)
 import urllib.request
 import os
+from pathlib import Path
 from lmfit.models import SkewedVoigtModel
 from lmfit.models import ExponentialGaussianModel
 from lmfit import Model
@@ -17,7 +18,9 @@ from uncertainties.core import wrap
 import sched
 
 schedule = sched.scheduler(time.time, time.sleep)
+schedule_start_time = 0.0
 eventList = []
+isfibersave = True
 
 
 class grafit(tk.Frame):
@@ -73,8 +76,9 @@ class grafit(tk.Frame):
 
         return
 
-    def plotit(self):
-
+    def plotit(self, islaser=False):
+        if islaser :
+          return
         data = ''
         f = urllib.request.urlopen('http://localhost:5022/?COMMAND=curve?')
         # f = urllib.request.urlopen('http://134.79.229.21/?COMMAND=curve?')
@@ -112,7 +116,7 @@ class grafit(tk.Frame):
         # wfmpre = '1;8;ASC;RP;MSB;500;"Ch1, AC coupling, 2.0E-2 V/div, 4.0E-5 s/div, 500 points, Average mode";Y;8.0E-7;0;-1.2E-4;"s";8.0E-4;0.0E0;-5.4E1;"V"'
         t = [1.0e6 * (float(wfmpre.split(';')[8]) * float(i) + float(wfmpre.split(';')[10])) for i in
              range(0, len(wfm))]
-        volt = [1.0e3 * (((dl / 256) - float(wfmpre.split(';')[14])) * float(wfmpre.split(';')[12]) - float(
+        volt = [1.0e3 * (((float(dl) - float(wfmpre.split(';')[14]))/1.0) * float(wfmpre.split(';')[12]) - float(
             wfmpre.split(';')[13])) for dl in wfm]
 
         if self.ctr % 2 == 1:
@@ -148,7 +152,7 @@ class grafit(tk.Frame):
         #     self.yar.pop(0)
 
         # plot if there is an odd iteration of whhile loop
-        if self.ctr % 2 == 1:
+        if self.ctr % 2 == 0 and self.ctr > 0:
             # Waveform to plot
             print(len(self.topHat), len(self.nontopHat))
             wvPlot = self.topHat - self.nontopHat
@@ -161,9 +165,12 @@ class grafit(tk.Frame):
             tfine = np.arange(t[0], t[-1] + 0.8, (t[1] - t[0]) / 10.0)
 
             ci_txt = result.ci_report()
+            #print(ci_txt)
 
-            cat = float(ci_txt.split('\n')[1].split('  ')[4])
-            an = float(ci_txt.split('\n')[2].split('  ')[4])
+            catrow = (ci_txt.split('\n')[1].split(':')[1])
+            anrow = (ci_txt.split('\n')[2].split(':')[1])
+            cat = np.fromstring(catrow,dtype=float,sep=' ')[3]
+            an = np.fromstring(anrow,dtype=float,sep=' ')[3]
 
             print('cat and an', cat, an)
 
@@ -181,10 +188,10 @@ class grafit(tk.Frame):
             # lower_bound = (81.9-10.0)/np.log((result.ci_out['cat'][4][1]/result.ci_out['an'][2][1]))
             # # print(yvar,lower_bound,upper_bound)
 
-            cat_ll = float(ci_txt.split('\n')[1].split('  ')[4]) + float(ci_txt.split('\n')[1].split('  ')[5])
-            cat_ul = float(ci_txt.split('\n')[1].split('  ')[6]) + float(ci_txt.split('\n')[1].split('  ')[5])
-            an_ll = float(ci_txt.split('\n')[2].split('  ')[4]) + float(ci_txt.split('\n')[2].split('  ')[5])
-            an_ul = float(ci_txt.split('\n')[2].split('  ')[6]) + float(ci_txt.split('\n')[2].split('  ')[5])
+            cat_ll = cat + np.fromstring(catrow,dtype=float,sep=' ')[2]
+            cat_ul = cat + np.fromstring(catrow,dtype=float,sep=' ')[4]
+            an_ll = an + np.fromstring(anrow,dtype=float,sep=' ')[2]
+            an_ul = an + np.fromstring(anrow,dtype=float,sep=' ')[4]
             upper_bound = -(81.9 - 10.0) / np.log(an_ul / cat_ll)
             lower_bound = -(81.9 - 10.0) / np.log(an_ll / cat_ul)
 
@@ -194,10 +201,10 @@ class grafit(tk.Frame):
 	    # we are appending the data to the row which will be written to the file
 	    # col 14 in file is 'cat_ll', first part before '+'
 	    
-            dataToFile[ 13] = float(ci_txt.split('\n')[1].split('  ')[4])
-            dataToFile[ 14] = float(ci_txt.split('\n')[1].split('  ')[6])
-            dataToFile[ 15] = float(ci_txt.split('\n')[2].split('  ')[4])
-            dataToFile[ 16] = float(ci_txt.split('\n')[2].split('  ')[6])
+            dataToFile[ 13] = cat_ll 
+            dataToFile[ 14] = cat_ul
+            dataToFile[ 15] = an_ll
+            dataToFile[ 16] = an_ul
 
 
 
@@ -217,7 +224,7 @@ class grafit(tk.Frame):
             self.plt2.errorbar(self.xar, self.yar, [self.el, self.eh], markersize=6, fmt='ro')
             self.plt2.set_title("$e^{-}$ Lifetime vs Time")
             self.plt2.set_ylabel('$\\tau$($\mu$s)')
-            self.plt2.set_yticklabels(['{:1.1e}'.format(x) for x in self.plt2.get_yticks()])
+            #self.plt2.set_yticklabels(['{:1.1e}'.format(x) for x in self.plt2.get_yticks()])
             self.plt2.set_xlabel('Time (h)')
             # self.plt2.set_ylim(0.0,2.0e4)
             # self.plt2.tick_params(axis='both',which='major',labelsize=9)
@@ -254,8 +261,8 @@ class grafit(tk.Frame):
 
         # print('Value of exc',exc)
         # os._exit(0)
-        print('Getting here---> plotit')
-        self.parent.after(1000, self.plotit)
+        #print('Getting here---> plotit')
+        #self.parent.after(1000, self.plotit)
 	
 	
 	
@@ -276,111 +283,15 @@ class grafit(tk.Frame):
         except NameError:
             print('Save file is not set')
 
+    def ud(self) :
+      if len( schedule.queue ) > 0 :
+        ct = int((schedule.queue[0][0] - time.time())*100)
+        if len( schedule.queue[0][3] ) > 1 and ct > 0 :
+          print(schedule.queue[0][3][0]+str(ct/100)+' sec')
+        if len( schedule.queue[0][3] ) == 0 :
+          print('Busy...Downloading waveforms...')
+      self.parent.after(1000,self.ud)
 
-    '''
-    def plotit(self):
-
-        # print(f"t: {len(t)}")
-        # print(f"volt: {len(volt)}")
-
-        # FINDING PEAK / UPSTROKE SIZE:
-
-        # begin search for start of upstroke after 50us:
-        # fiftymus = np.argmax( np.array(t) > 50.0 )
-        # print("fiftymus: " , fiftymus)
-        # volt_subset = volt[:fiftymus]
-        # max_index = np.argmax(volt_subset) # give all elements of array greater than 50
-        # print("max index: ", max_index)
-        # # search for minimum either 50 points back or less in the subset:
-        # start = max_index - 50
-        # print("start: ", start)
-        # if start < 0 : start = 0
-        # try :
-        #     peak = volt_subset[max_index] - np.min( np.array(volt_subset)[start:max_index] )
-        # except ValueError:
-        #     print('max_index',str(max_index))
-        #     print(volt_subset)
-
-        timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-
-        # if len(self.xar) > 5000:
-        #     self.xar.pop(0)
-        #     self.yar.pop(0)
-
-        # plot if there is an odd iteration of whhile loop
-        if self.ctr % 2 == 1:
-            # Waveform to plot
-            print(len(self.topHat), len(self.nontopHat))
-            wvPlot = self.topHat - self.nontopHat
-
-            print('cat and an', cat, an)
-
-            self.xar.append((time.time() - self.start_time) / 3600)
-            self.yar.append((81.9 - 10.0) / np.log(cat / an))
-
-            # yvar = (81.9-10.0)/np.log(result.ci_out['cat'][3][1]/result.ci_out['an'][3][1])
-            # upper_bound = (81.9-10.0)/np.log((result.ci_out['cat'][2][1]/result.ci_out['an'][4][1]))
-            # lower_bound = (81.9-10.0)/np.log((result.ci_out['cat'][4][1]/result.ci_out['an'][2][1]))
-            # # print(yvar,lower_bound,upper_bound)
-
-            cat_ll = float(ci_txt.split('\n')[1].split('  ')[4]) + float(ci_txt.split('\n')[1].split('  ')[5])
-            cat_ul = float(ci_txt.split('\n')[1].split('  ')[6]) + float(ci_txt.split('\n')[1].split('  ')[5])
-            an_ll = float(ci_txt.split('\n')[2].split('  ')[4]) + float(ci_txt.split('\n')[2].split('  ')[5])
-            an_ul = float(ci_txt.split('\n')[2].split('  ')[6]) + float(ci_txt.split('\n')[2].split('  ')[5])
-            upper_bound = -(81.9 - 10.0) / np.log(an_ul / cat_ll)
-            lower_bound = -(81.9 - 10.0) / np.log(an_ll / cat_ul)
-
-            # self.yar.append(yvar)
-
-            self.el.append(lower_bound)
-            self.eh.append(upper_bound)
-            # # errormatrix = np.array( [self.el, self.eh])
-
-            # self.plt1.plot(tfine,self.wavmodel.eval(x=tfine,an=b['an'],cat=b['cat'],cent_c=b['cent_c'],tcrise=b['tcrise'],tarise=b['tarise'],cent_a=b['cent_a'],gam_a=b['gam_a'],gam_c=b['gam_c'],skew_a=b['skew_a'],offst=b['offst']),'r-',label='proposed: an=42.04 mV')
-
-            self.plt1.clear()
-            self.plt2.clear()
-
-            # PLOTTTING PEAKS:
-            # self.plt.subplot(211)
-            self.plt2.errorbar(self.xar, self.yar, [self.el, self.eh], markersize=6, fmt='ro')
-            self.plt2.set_title("$e^{-}$ Lifetime vs Time")
-            self.plt2.set_ylabel('$\tau$')
-            self.plt2.set_xlabel('Time (h)')
-
-            # PLOTTING WAVEFORM:
-            # self.plt.subplot(212)
-            self.plt1.plot(t, wvPlot, 'go-')
-            tfine = np.arange(t[0], t[-1] + 0.8, (t[1] - t[0]) / 10.0)
-            self.plt1.plot(tfine,
-                           self.wavmodel.eval(x=tfine, an=b['an'], cat=b['cat'], cent_c=b['cent_c'], tcrise=b['tcrise'],
-                                              tarise=b['tarise'], cent_a=b['cent_a'], gam_a=b['gam_a'],
-                                              gam_c=b['gam_c'], skew_a=b['skew_a'], offst=b['offst']), 'r-',
-                           label='proposed: an=42.04 mV')
-
-            self.plt1.set_title("Most recent waveform")
-            self.plt1.set_ylabel("MilliVolts")
-            self.plt1.set_xlabel(u"Time (\u03bcs)")
-
-            # self.plt.subplots_adjust(hspace=0.6, wspace=0.6)
-            # self.plot_widget.grid(row=0, column=0, rowspan=2)
-
-            # WIDGET TO SEE MOST RECENT PEAK
-
-            # peak = round(peak, 1)
-            # self.T.insert(tk.END, peak)
-
-            self.canvas1.draw_idle()
-            self.canvas2.draw_idle()
-        # originally 5:
-        # time.sleep(1.0)
-        self.ctr += 1
-
-        # print('Value of exc',exc)
-        # os._exit(0)
-        print('Getting here---> plotit')
-        # self.parent.after(1000,self.plotit)
-    '''
     def on_closing(self):
         saveFile.close()
         os._exit(0)
@@ -540,17 +451,87 @@ class grafit(tk.Frame):
 
 
 def startSchedule():
+    while len( schedule.queue ) < 63 :
+      pass
     schedule.run()
-
     return
 
+def closeshutter(text,dwell) :
+  Path('.shutterclosed').touch()
+  return
 
-def fitScheduler(plotit):
+
+def openshutter(text,dwell) :
+  try :
+    Path('.shutterclosed').unlink()
+  except Exception as exc:
+    return
+  return
+
+
+def control():
+  total = 0.0
+  while True :
+    dwellclosed = 22.0
+    dwellopen = 31.0
+    fibersavetime = 300.0 #for fibersave
+    tbc = dwellopen
+    tf = 0
+    if len( schedule.queue ) == 0 : 
+      for iii in range(0,10) :
+        iodelay = 12
+        text = '*Acquisition mode ---SHUTTER CLOSED--- capture background trace in '
+        if isfibersave and root.graph.ctr > 0 :
+          text = '*Fiber-saving mode: ---SHUTTER CLOSED--- next acquisition in '
+        schedule.enter( total, 1, closeshutter, argument=(text,dwellclosed) )
+        total = total + dwellclosed
+        schedule.enter( total, 1, root.graph.plotit )
+        total = total + iodelay
+        text = '*Acquisition mode ---SHUTTER OPEN--- capture (signal+background) in '
+        schedule.enter( total, 1, openshutter, argument=(text,dwellopen) )
+        total = total + dwellopen
+        #text = 'Acquisition mode ---SHUTTER OPEN--- capture (signal+background) in '
+        schedule.enter( total, 1, root.graph.plotit)
+        #text = 'Acquisition mode ---SHUTTER OPEN--- capturing laser traces '
+        total = total + iodelay
+        schedule.enter( total, 1, root.graph.plotit , argument = [True] )
+        total = total + 1
+        schedule.enter( total, 1, root.graph.plotit , argument = [True] )
+        if isfibersave and iii == 9 :
+          text = '*Fiber-save mode ---CLOSING SHUTTER--- '
+          #print(text)
+          total = total + 1
+          schedule.enter( total, 1, closeshutter, argument=(text,fibersavetime) )
+          total = total + fibersavetime
+        else :
+          total = total + 1
+          text = '*Acquisition mode ---SHUTTER OPEN--- next acquisition in '
+          schedule.enter( total, 1, openshutter, argument=(text,tbc) )
+          total = total + tbc 
+      if isfibersave : 
+        total = fibersavetime
+      else :
+        total = tbc
+def fitScheduler(graph):
     #
     # populate schedule
-
-    schedule.enter(0, 1, plotit)
-    schedule.enter(10, 1, plotit) # 10 seconds, priority 1, what to do
+    dwellclosed = 12.0
+    dwellopen = 15.0
+    tbc = dwellopen
+    tf = 0
+    iodelay = 15
+    text = 'Acquisition mode ---SHUTTER CLOSED--- capture background trace in '
+    schedule.enter( tf, 1, closeshutter, argument=(text,dwellclosed) )
+    schedule.enter( tf + dwellclosed, 1, root.graph.plotit )
+    text = 'Acquisition mode ---SHUTTER OPEN--- capture (signal+background) in '
+    schedule.enter( tf + dwellclosed + iodelay, 1, openshutter, argument=(text,dwellopen) )
+    #text = 'Acquisition mode ---SHUTTER OPEN--- capture (signal+background) in '
+    schedule.enter( tf + dwellclosed + iodelay + dwellopen, 1, root.graph.plotit)
+    #text = 'Acquisition mode ---SHUTTER OPEN--- capturing laser traces '
+    schedule.enter( tf + dwellclosed + iodelay + dwellopen + iodelay, 1, root.graph.plotit, argument=[True] )
+    schedule.enter( tf + dwellclosed + iodelay + dwellopen + iodelay + iodelay, 1, root.graph.plotit , argument=[True] )
+    text = 'Acquisition mode ---SHUTTER OPEN--- next acquisition in '
+    schedule.enter( tf + dwellclosed + iodelay + dwellopen + iodelay + iodelay + iodelay, 1, openshutter, argument=(text,tbc) )
     return schedule.queue
 
 
@@ -573,8 +554,14 @@ class onlineXPMFitter(tk.Tk):
 
 
 root = onlineXPMFitter()
-root.graph.plotit()
-#fitScheduler(root.graph.plotit)
-#scheduThread = threading.Thread(target=startSchedule)
-#scheduThread.start()
+#root.graph.plotit()
+#fitScheduler(root.graph)
+#print('fit' +str(schedule.queue[:][0]))
+scheduThread = threading.Thread(target=startSchedule)
+controlThread = threading.Thread(target=control)
+schedule_start_time = time.time()
+controlThread.start()
+root.graph.ud()
+time.sleep(1.0)
+scheduThread.start()
 root.mainloop()
