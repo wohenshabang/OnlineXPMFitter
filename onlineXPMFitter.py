@@ -181,7 +181,8 @@ class grafit(tk.Frame):
             dataToFile[ 5] = an
 
             self.xar.append((time.time() - self.start_time) / 3600)
-            self.yar.append((81.9 - 10.0) / np.log(cat / an))
+            tau_e = (81.9 - 10.0) / np.log(cat / an)
+            self.yar.append(tau_e)
 
             # yvar = (81.9-10.0)/np.log(result.ci_out['cat'][3][1]/result.ci_out['an'][3][1])
             # upper_bound = (81.9-10.0)/np.log((result.ci_out['cat'][2][1]/result.ci_out['an'][4][1]))
@@ -194,6 +195,7 @@ class grafit(tk.Frame):
             an_ul = an + np.fromstring(anrow,dtype=float,sep=' ')[4]
             upper_bound = -(81.9 - 10.0) / np.log(an_ul / cat_ll)
             lower_bound = -(81.9 - 10.0) / np.log(an_ll / cat_ul)
+            #print(tau_e,lower_bound,upper_bound)
 
 
 
@@ -210,8 +212,8 @@ class grafit(tk.Frame):
 
             # self.yar.append(yvar)
 
-            self.el.append(lower_bound)
-            self.eh.append(upper_bound)
+            self.el.append(tau_e - lower_bound)
+            self.eh.append(upper_bound - tau_e)
             # # errormatrix = np.array( [self.el, self.eh])
 
             # self.plt1.plot(tfine,self.wavmodel.eval(x=tfine,an=b['an'],cat=b['cat'],cent_c=b['cent_c'],tcrise=b['tcrise'],tarise=b['tarise'],cent_a=b['cent_a'],gam_a=b['gam_a'],gam_c=b['gam_c'],skew_a=b['skew_a'],offst=b['offst']),'r-',label='proposed: an=42.04 mV')
@@ -472,15 +474,17 @@ def openshutter(text,dwell) :
 def control():
   total = 0.0
   while True :
-    dwellclosed = 22.0
-    dwellopen = 31.0
+    dwellclosed = 32.0
+    dwellopen = 33.0
     fibersavetime = 300.0 #for fibersave
-    tbc = dwellopen
+    tbc = dwellclosed
     tf = 0
     if len( schedule.queue ) == 0 or ( len(schedule.queue) == 7  and root.graph.ctr > 0 ) : 
       for iii in range(0,10) :
         iodelay = 12
-        text = '*Capturing background ---CLOSING SHUTTER--- '
+        text = '*Initializing acquisition ---SHUTTER CLOSED--- '
+        if isfibersave and root.graph.ctr > 0 and iii == 0 :
+          text = '*Fiber-saving mode: ---SHUTTER CLOSED--- resume in '
         schedule.enter( total, 1, closeshutter, argument=(text,1.0) )
         text = '*Acquisition mode ---SHUTTER CLOSED--- capture background trace in '
         if isfibersave and root.graph.ctr > 0 :
@@ -496,19 +500,19 @@ def control():
         schedule.enter( total, 1, root.graph.plotit, argument=(text,dwellopen))
         #text = 'Acquisition mode ---SHUTTER OPEN--- capturing laser traces '
         total = total + 1
-        schedule.enter( total, 1, root.graph.plotit , argument = ('UV Laser trace',1.0,True) )
+        schedule.enter( total, 1, root.graph.plotit , argument = ('Getting UV Laser trace ',1.0,True) )
         total = total + 1
-        schedule.enter( total, 1, root.graph.plotit , argument = ('IR Laser trace',1.0,True) )
+        schedule.enter( total, 1, root.graph.plotit , argument = ('Getting IR Laser trace ',1.0,True) )
         if isfibersave and iii == 9 :
-          text = '*Fiber-save mode ---CLOSING SHUTTER--- '
+          text = '*Fiber-saving mode: ---CLOSING SHUTTER--- '
           #print(text)
           total = total + 1
           schedule.enter( total, 1, closeshutter, argument=(text,1.0) )
           total = total + fibersavetime
         else :
           total = total + 1
-          text = '*Acquisition mode ---SHUTTER OPEN--- next acquisition in '
-          schedule.enter( total, 1, openshutter, argument=(text,1.0) )
+          text = '*Acquisition mode ---CLOSING SHUTTER--- preparing next acquisition '
+          schedule.enter( total, 1, closeshutter, argument=(text,1.0) )
           total = total + tbc
       if isfibersave : 
         total = fibersavetime
