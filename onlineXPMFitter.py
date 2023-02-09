@@ -76,7 +76,7 @@ class grafit(tk.Frame):
 
         return
 
-    def plotit(self, islaser=False):
+    def plotit(self,  text='' , dwell=0.0 , islaser=False ):
         if islaser :
           return
         data = ''
@@ -477,37 +477,39 @@ def control():
     fibersavetime = 300.0 #for fibersave
     tbc = dwellopen
     tf = 0
-    if len( schedule.queue ) == 0 : 
+    if len( schedule.queue ) == 0 or ( len(schedule.queue) == 7  and root.graph.ctr > 0 ) : 
       for iii in range(0,10) :
         iodelay = 12
+        text = '*Capturing background ---CLOSING SHUTTER--- '
+        schedule.enter( total, 1, closeshutter, argument=(text,1.0) )
         text = '*Acquisition mode ---SHUTTER CLOSED--- capture background trace in '
         if isfibersave and root.graph.ctr > 0 :
           text = '*Fiber-saving mode: ---SHUTTER CLOSED--- next acquisition in '
-        schedule.enter( total, 1, closeshutter, argument=(text,dwellclosed) )
-        total = total + dwellclosed
-        schedule.enter( total, 1, root.graph.plotit )
-        total = total + iodelay
-        text = '*Acquisition mode ---SHUTTER OPEN--- capture (signal+background) in '
-        schedule.enter( total, 1, openshutter, argument=(text,dwellopen) )
-        total = total + dwellopen
-        #text = 'Acquisition mode ---SHUTTER OPEN--- capture (signal+background) in '
-        schedule.enter( total, 1, root.graph.plotit)
-        #text = 'Acquisition mode ---SHUTTER OPEN--- capturing laser traces '
-        total = total + iodelay
-        schedule.enter( total, 1, root.graph.plotit , argument = [True] )
+        total = total + 1 + dwellclosed
+        schedule.enter( total, 1, root.graph.plotit, argument=(text,dwellclosed) )
+        #total = total + iodelay
         total = total + 1
-        schedule.enter( total, 1, root.graph.plotit , argument = [True] )
+        text = '*Capturing (signal+background) ---OPENING SHUTTER--- '
+        schedule.enter( total, 1, openshutter, argument=(text,1.0) )
+        text = 'Acquisition mode ---SHUTTER OPEN--- capture (signal+background) in '
+        total = total + dwellopen 
+        schedule.enter( total, 1, root.graph.plotit, argument=(text,dwellopen))
+        #text = 'Acquisition mode ---SHUTTER OPEN--- capturing laser traces '
+        total = total + 1
+        schedule.enter( total, 1, root.graph.plotit , argument = ('UV Laser trace',1.0,True) )
+        total = total + 1
+        schedule.enter( total, 1, root.graph.plotit , argument = ('IR Laser trace',1.0,True) )
         if isfibersave and iii == 9 :
           text = '*Fiber-save mode ---CLOSING SHUTTER--- '
           #print(text)
           total = total + 1
-          schedule.enter( total, 1, closeshutter, argument=(text,fibersavetime) )
+          schedule.enter( total, 1, closeshutter, argument=(text,1.0) )
           total = total + fibersavetime
         else :
           total = total + 1
           text = '*Acquisition mode ---SHUTTER OPEN--- next acquisition in '
-          schedule.enter( total, 1, openshutter, argument=(text,tbc) )
-          total = total + tbc 
+          schedule.enter( total, 1, openshutter, argument=(text,1.0) )
+          total = total + tbc
       if isfibersave : 
         total = fibersavetime
       else :
