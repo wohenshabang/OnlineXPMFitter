@@ -51,7 +51,7 @@ class grafit(tk.Frame):
         # wfmpre = '1;8;ASC;RP;MSB;500;"Ch1, AC coupling, 2.0E-2 V/div, 4.0E-5 s/div, 500 points, Average mode";Y;8.0E-7;0;-1.2E-4;"s";8.0E-4;0.0E0;-5.4E1;"V"'
         t = [1.0e6 * (float(wfmpre.split(';')[8]) * float(i) + float(wfmpre.split(';')[10])) for i in
              range(0, len(wfm))]
-        volt = [1.0e3 * (((dl / 256) - float(wfmpre.split(';')[14])) * float(wfmpre.split(';')[12]) - float(
+        volt = [1.0e3 * (((float(dl) - float(wfmpre.split(';')[14]))/1.0) * float(wfmpre.split(';')[12]) - float(
             wfmpre.split(';')[13])) for dl in wfm]
 
         return zip(t, volt)
@@ -61,7 +61,7 @@ class grafit(tk.Frame):
         return signalBgd - background
 
     def calcTAU(self, t, volt):
-        result = self.wavmodel.fit(wvPlot, self.wavparams, x=t)
+        result = self.wavmodel.fit(wvPlot, self.wavparams, x=t, method='nelder')
         # print('results--->', result.ci_out)
 
         # result = self.wavmodel.fit(wvPlot[t<150],self.wavparams,x=t[t<150])
@@ -86,9 +86,6 @@ class grafit(tk.Frame):
         print('received ' + data)
 
 
-        dataToFile = []
-        for i in range( 17):
-            dataToFile.append('NONE')
 
         # here we check if the save file has been defined, if so write to it, if not state that it is not set
         #try:
@@ -100,8 +97,6 @@ class grafit(tk.Frame):
         #        print('Save file has been closed')
         #except NameError:
         #    print('Save file is not set')
-
-
 
         wfm = [float(u) for u in data.split(',')]
         # print(len(wfm))
@@ -145,7 +140,6 @@ class grafit(tk.Frame):
         #     print('max_index',str(max_index))
         #     print(volt_subset)
 
-        timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
         # if len(self.xar) > 5000:
         #     self.xar.pop(0)
@@ -153,6 +147,14 @@ class grafit(tk.Frame):
 
         # plot if there is an odd iteration of whhile loop
         if self.ctr % 2 == 0 and self.ctr > 0:
+            dataToFile = []
+            for i in range( 17):
+                dataToFile.append(' ')
+            #timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            dataToFile[0] = '10.0'
+            dataToFile[1] = '81.9'
+            dataToFile[2] = '1.0'
+            dataToFile[3] = '2.9'
             # Waveform to plot
             print(len(self.topHat), len(self.nontopHat))
             wvPlot = self.topHat - self.nontopHat
@@ -169,16 +171,28 @@ class grafit(tk.Frame):
 
             catrow = (ci_txt.split('\n')[1].split(':')[1])
             anrow = (ci_txt.split('\n')[2].split(':')[1])
+            offstrow = (ci_txt.split('\n')[3].split(':')[1])
             cat = np.fromstring(catrow,dtype=float,sep=' ')[3]
             an = np.fromstring(anrow,dtype=float,sep=' ')[3]
+            offst = np.fromstring(offstrow,dtype=float,sep=' ')[3]
+           
 
             print('cat and an', cat, an)
 
 
 
             # adding data to list that gets printed to file ( columns 5 and 6)
-            dataToFile[ 4] = cat
-            dataToFile[ 5] = an
+            dataToFile[4] = str(cat)
+            dataToFile[5] = str(an)
+            dataToFile[6] = str(offst)
+            dataToFile[7] = str( datetime.datetime.now().timestamp() + 126144000.0 + 2208988800.0 )
+            dataToFile[8] = str(0.0) #UV
+            dataToFile[9] = str(0.0) #IR
+            dataToFile[10] = str(result.chisqr/result.nfree) #reduced chisq
+            dataToFile[11] = str(0.0)
+            dataToFile[12] = str(0.0)
+            
+            
 
             self.xar.append((time.time() - self.start_time) / 3600)
             tau_e = (81.9 - 10.0) / np.log(cat / an)
@@ -203,10 +217,10 @@ class grafit(tk.Frame):
 	    # we are appending the data to the row which will be written to the file
 	    # col 14 in file is 'cat_ll', first part before '+'
 	    
-            dataToFile[ 13] = cat_ll 
-            dataToFile[ 14] = cat_ul
-            dataToFile[ 15] = an_ll
-            dataToFile[ 16] = an_ul
+            dataToFile[ 13] = str(cat_ll) 
+            dataToFile[ 14] = str(cat_ul)
+            dataToFile[ 15] = str(an_ll)
+            dataToFile[ 16] = str(an_ul)
 
 
 
@@ -223,7 +237,7 @@ class grafit(tk.Frame):
 
             # PLOTTTING PEAKS:
             # self.plt.subplot(211)
-            self.plt2.errorbar(self.xar, self.yar, [self.el, self.eh], markersize=6, fmt='ro')
+            self.plt2.errorbar(self.xar, self.yar, [self.el, self.eh], markersize=6, fmt='o',mec='r',mfc='None')
             self.plt2.set_title("$e^{-}$ Lifetime vs Time")
             self.plt2.set_ylabel('$\\tau$($\mu$s)')
             #self.plt2.set_yticklabels(['{:1.1e}'.format(x) for x in self.plt2.get_yticks()])
@@ -235,13 +249,12 @@ class grafit(tk.Frame):
             self.figure2.tight_layout()
             # PLOTTING WAVEFORM:
             # self.plt.subplot(212)
-            self.plt1.plot(t, wvPlot, 'go-')
+            self.plt1.plot(t, wvPlot, 'g-')
             tfine = np.arange(t[0], t[-1] + 0.8, (t[1] - t[0]) / 10.0)
             self.plt1.plot(tfine,
                            self.wavmodel.eval(x=tfine, an=b['an'], cat=b['cat'], cent_c=b['cent_c'], tcrise=b['tcrise'],
                                               tarise=b['tarise'], cent_a=b['cent_a'], gam_a=b['gam_a'],
-                                              gam_c=b['gam_c'], skew_a=b['skew_a'], offst=b['offst']), 'r-',
-                           label='proposed: an=42.04 mV')
+                                              gam_c=b['gam_c'], skew_a=b['skew_a'], offst=b['offst']), 'r-', label='proposed: an=42.04 mV')
 
             self.plt1.set_title("Most recent waveform")
             self.plt1.set_ylabel("MilliVolts")
@@ -278,7 +291,7 @@ class grafit(tk.Frame):
                 #try:
                 #    dataToFile
                 #    if dataToFile.
-                saveData = str( ', '.join( str(i) for i in dataToFile)) + '\n'
+                saveData = str( ','.join( str(i) for i in dataToFile)) + '\n'
                 saveFile.write(saveData)
             else:
                 print('Save file has been closed')
@@ -297,6 +310,19 @@ class grafit(tk.Frame):
     def on_closing(self):
         saveFile.close()
         os._exit(0)
+
+    def fitter_func(self, x, cat, an, tcrise, tarise, offst, cent_c=0.0, gam_c=0.0, cent_a=0.0, gam_a=0.0, skew_a=0.0 ):
+        global err
+        thold = 395.3
+        x_beg = x[x<10.0]
+        x_mid = x[(x>=10.0)*(x<81.9)]
+        x_end = x[x>=81.9]
+        y_beg = 0.5*cat*erfc((-x_beg+10.0)/tcrise) - 0.5*an*erfc((-x_beg+81.9)/tarise)
+        y_mid = 0.5*cat*erfc((-x_mid+10.0)/tcrise)*np.exp(-(x_mid-10.0)/thold) - 0.5*an*erfc((-x_mid+81.9)/tarise)
+        y_end = 0.5*cat*erfc((-x_end+10.0)/tcrise)*np.exp(-(x_end-10.0)/thold) - 0.5*an*erfc((-x_end+81.9)/tarise)*np.exp(-(x_end-81.9)/thold)
+        y = np.concatenate((y_beg,y_mid,y_end),axis=None)
+        y = y + offst
+        return y
 
     def extra_smeared(self, x, cat, an, tcrise, cent_c, gam_c, tarise, cent_a, gam_a, skew_a, offst):
         self.catpars['amplitude'].value = cat
@@ -343,35 +369,63 @@ class grafit(tk.Frame):
         self.T = tk.Text(self.parent, height=1, width=5, font=("Courier", 64))
         self.T.grid(row=0, column=1)
         self.T.config(foreground="blue")
+        self.isStandard = True
 
-        self.p_i = [37.873185672822736, 40.81570955383812, 10.0, 3.598, 0.980325759727434, 81.9, 1.80825, 0.8, 0.9, 0.2]
+        if self.isStandard :
+          self.p_i = [37.873185672822736, 40.81570955383812, 10.0, 1.0, 2.9, 81.9, 1.80825, 0.8, 0.9, 0.2]
+          self.wavmodel = Model(self.fitter_func,nan_policy='raise')
+          self.wavparams = self.wavmodel.make_params()
+          self.wavparams['cat'].value = self.p_i[0]
+          self.wavparams['cat'].vary = True
+          self.wavparams['an'].value = self.p_i[1]
+          self.wavparams['an'].vary = True
+          self.wavparams['cent_c'].value = self.p_i[2]
+          self.wavparams['cent_c'].vary = False
+          # self.wavparams['thold'].value = self.p_i[3]
+          # self.wavparams['thold'].vary = False
+          self.wavparams['tcrise'].value = self.p_i[3]
+          self.wavparams['tcrise'].vary = False
+          self.wavparams['tarise'].value = self.p_i[4]
+          self.wavparams['tarise'].vary = False
+          self.wavparams['cent_a'].value = self.p_i[5]
+          self.wavparams['cent_a'].vary = False
+          self.wavparams['gam_a'].value = self.p_i[6]
+          self.wavparams['gam_a'].vary = False
+          self.wavparams['skew_a'].value = self.p_i[7]
+          self.wavparams['skew_a'].vary = False
+          self.wavparams['gam_c'].value = self.p_i[8]
+          self.wavparams['gam_c'].vary = False
+          self.wavparams['offst'].value = self.p_i[9]
+          self.wavparams['offst'].vary = True
+        else :
+          self.p_i = [37.873185672822736, 40.81570955383812, 10.0, 3.598, 0.980325759727434, 81.9, 1.80825, 0.8, 0.9, 0.2]
+          self.wavmodel = Model(self.extra_smeared, nan_policy='raise')
+          self.wavparams = self.wavmodel.make_params()
+          self.wavparams['cat'].value = self.p_i[0]
+          self.wavparams['cat'].vary = True
+          self.wavparams['an'].value = self.p_i[1]
+          self.wavparams['an'].vary = True
+          self.wavparams['cent_c'].value = self.p_i[2]
+          self.wavparams['cent_c'].vary = False
+          # self.wavparams['thold'].value = self.p_i[3]
+          # self.wavparams['thold'].vary = False
+          self.wavparams['tcrise'].value = self.p_i[3]
+          self.wavparams['tcrise'].vary = False
+          self.wavparams['tarise'].value = self.p_i[4]
+          self.wavparams['tarise'].vary = False
+          self.wavparams['cent_a'].value = self.p_i[5]
+          self.wavparams['cent_a'].vary = False
+          self.wavparams['gam_a'].value = self.p_i[6]
+          self.wavparams['gam_a'].vary = False
+          self.wavparams['skew_a'].value = self.p_i[7]
+          self.wavparams['skew_a'].vary = False
+          self.wavparams['gam_c'].value = self.p_i[8]
+          self.wavparams['gam_c'].vary = False
+          self.wavparams['offst'].value = self.p_i[9]
+          self.wavparams['offst'].vary = True
+        
         # self.wavmodel = Model(smeared_func,nan_policy='raise')
-        self.wavmodel = Model(self.extra_smeared, nan_policy='raise')
-        # self.wavmodel = Model(fitter_func,nan_policy='raise')
-        self.wavparams = self.wavmodel.make_params()
 
-        self.wavparams['cat'].value = self.p_i[0]
-        self.wavparams['cat'].vary = True
-        self.wavparams['an'].value = self.p_i[1]
-        self.wavparams['an'].vary = True
-        self.wavparams['cent_c'].value = self.p_i[2]
-        self.wavparams['cent_c'].vary = False
-        # self.wavparams['thold'].value = self.p_i[3]
-        # self.wavparams['thold'].vary = False
-        self.wavparams['tcrise'].value = self.p_i[3]
-        self.wavparams['tcrise'].vary = False
-        self.wavparams['tarise'].value = self.p_i[4]
-        self.wavparams['tarise'].vary = False
-        self.wavparams['cent_a'].value = self.p_i[5]
-        self.wavparams['cent_a'].vary = False
-        self.wavparams['gam_a'].value = self.p_i[6]
-        self.wavparams['gam_a'].vary = False
-        self.wavparams['skew_a'].value = self.p_i[7]
-        self.wavparams['skew_a'].vary = False
-        self.wavparams['gam_c'].value = self.p_i[8]
-        self.wavparams['gam_c'].vary = False
-        self.wavparams['offst'].value = self.p_i[9]
-        self.wavparams['offst'].vary = True
 
         self.pkmodel = SkewedVoigtModel()
         self.catmodel = ExponentialGaussianModel()
@@ -416,9 +470,9 @@ class grafit(tk.Frame):
 	
 	    # the file that the info will be saved to( open appropriate one when path is specified)
             global saveFile 
-            saveFile = open(r'%s' % (savePath), "w")
+            saveFile = open(r'%s' % (savePath), "a")
 	
-            saveFile.write("Hello saveFile\n")
+            #saveFile.write("Hello saveFile\n")
 
 	    # if opened successfully, display file close button
             if( saveFile):
@@ -487,8 +541,8 @@ def control():
           text = '*Fiber-saving mode: ---SHUTTER CLOSED--- resume in '
         schedule.enter( total, 1, closeshutter, argument=(text,1.0) )
         text = '*Acquisition mode ---SHUTTER CLOSED--- capture background trace in '
-        if isfibersave and root.graph.ctr > 0 :
-          text = '*Fiber-saving mode: ---SHUTTER CLOSED--- next acquisition in '
+        #if isfibersave and root.graph.ctr > 0 :
+        #  text = '*Fiber-saving mode: ---SHUTTER CLOSED--- next acquisition in '
         total = total + 1 + dwellclosed
         schedule.enter( total, 1, root.graph.plotit, argument=(text,dwellclosed) )
         #total = total + iodelay
