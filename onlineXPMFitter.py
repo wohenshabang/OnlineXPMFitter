@@ -77,26 +77,13 @@ class grafit(tk.Frame):
         return
 
     def plotit(self,  text='' , dwell=0.0 , islaser=False ):
-        if islaser :
+        if islaser : #FIXME: the laser traces shouldn't just be getting ignored
           return
         data = ''
         f = urllib.request.urlopen('http://localhost:5022/?COMMAND=curve?')
         # f = urllib.request.urlopen('http://134.79.229.21/?COMMAND=curve?')
         data = f.read().decode()
         print('received ' + data)
-
-
-
-        # here we check if the save file has been defined, if so write to it, if not state that it is not set
-        #try:
-        #    saveFile
-        #    if not saveFile.closed:
-        #        print('Writing data to save file')
-        #        #saveFile.write(data)
-        #    else:
-        #        print('Save file has been closed')
-        #except NameError:
-        #    print('Save file is not set')
 
         wfm = [float(u) for u in data.split(',')]
         # print(len(wfm))
@@ -105,7 +92,6 @@ class grafit(tk.Frame):
         f2 = urllib.request.urlopen('http://localhost:5022/?COMMAND=wfmpre?')
         # f2 = urllib.request.urlopen('http://134.79.229.21/?COMMAND=wfmpre?')
         wfmpre = f2.read().decode()
-        # print(wfmpre)
 
         # EXAMPLE WFMPRE:
         # wfmpre = '1;8;ASC;RP;MSB;500;"Ch1, AC coupling, 2.0E-2 V/div, 4.0E-5 s/div, 500 points, Average mode";Y;8.0E-7;0;-1.2E-4;"s";8.0E-4;0.0E0;-5.4E1;"V"'
@@ -114,39 +100,13 @@ class grafit(tk.Frame):
         volt = [1.0e3 * (((float(dl) - float(wfmpre.split(';')[14]))/1.0) * float(wfmpre.split(';')[12]) - float(
             wfmpre.split(';')[13])) for dl in wfm]
 
-        if self.ctr % 2 == 1:
-            self.topHat = np.array(volt)
-        else:
-            self.nontopHat = np.array(volt)
-
-        # print(f"t: {len(t)}")
-        # print(f"volt: {len(volt)}")
-
-        # FINDING PEAK / UPSTROKE SIZE:
-
-        # begin search for start of upstroke after 50us:
-        # fiftymus = np.argmax( np.array(t) > 50.0 )
-        # print("fiftymus: " , fiftymus)
-        # volt_subset = volt[:fiftymus]
-        # max_index = np.argmax(volt_subset) # give all elements of array greater than 50
-        # print("max index: ", max_index)
-        # # search for minimum either 50 points back or less in the subset:
-        # start = max_index - 50
-        # print("start: ", start)
-        # if start < 0 : start = 0
-        # try :
-        #     peak = volt_subset[max_index] - np.min( np.array(volt_subset)[start:max_index] )
-        # except ValueError:
-        #     print('max_index',str(max_index))
-        #     print(volt_subset)
-
-
         # if len(self.xar) > 5000:
         #     self.xar.pop(0)
         #     self.yar.pop(0)
 
-        # plot if there is an odd iteration of whhile loop
-        if self.ctr % 2 == 0 and self.ctr > 0:
+        # FIXME: every other trace is signal+background
+        if self.ctr % 2 == 1 :
+            self.topHat = np.array(volt)
             dataToFile = []
             for i in range( 17):
                 dataToFile.append(' ')
@@ -161,9 +121,7 @@ class grafit(tk.Frame):
             result = self.wavmodel.fit(wvPlot, self.wavparams, x=t)
             # print('results--->', result.ci_out)
 
-            # result = self.wavmodel.fit(wvPlot[t<150],self.wavparams,x=t[t<150])
             b = result.best_values
-            # errors = result.ci_out
             tfine = np.arange(t[0], t[-1] + 0.8, (t[1] - t[0]) / 10.0)
 
             ci_txt = result.ci_report()
@@ -175,33 +133,24 @@ class grafit(tk.Frame):
             cat = np.fromstring(catrow,dtype=float,sep=' ')[3]
             an = np.fromstring(anrow,dtype=float,sep=' ')[3]
             offst = np.fromstring(offstrow,dtype=float,sep=' ')[3]
-           
 
             print('cat and an', cat, an)
-
-
 
             # adding data to list that gets printed to file ( columns 5 and 6)
             dataToFile[4] = str(cat)
             dataToFile[5] = str(an)
             dataToFile[6] = str(offst)
-            dataToFile[7] = str( datetime.datetime.now().timestamp() + 126144000.0 + 2208988800.0 )
             dataToFile[8] = str(0.0) #UV
             dataToFile[9] = str(0.0) #IR
             dataToFile[10] = str(result.chisqr/result.nfree) #reduced chisq
             dataToFile[11] = str(0.0)
             dataToFile[12] = str(0.0)
-            
-            
 
             self.xar.append((time.time() - self.start_time) / 3600)
+            ts = self.xar[-1]*3600.0 + self.start_time
+            dataToFile[7] = str( ts + 126144000.0 + 2208988800.0 )
             tau_e = (81.9 - 10.0) / np.log(cat / an)
             self.yar.append(tau_e)
-
-            # yvar = (81.9-10.0)/np.log(result.ci_out['cat'][3][1]/result.ci_out['an'][3][1])
-            # upper_bound = (81.9-10.0)/np.log((result.ci_out['cat'][2][1]/result.ci_out['an'][4][1]))
-            # lower_bound = (81.9-10.0)/np.log((result.ci_out['cat'][4][1]/result.ci_out['an'][2][1]))
-            # # print(yvar,lower_bound,upper_bound)
 
             cat_ll = cat + np.fromstring(catrow,dtype=float,sep=' ')[2]
             cat_ul = cat + np.fromstring(catrow,dtype=float,sep=' ')[4]
@@ -209,28 +158,15 @@ class grafit(tk.Frame):
             an_ul = an + np.fromstring(anrow,dtype=float,sep=' ')[4]
             upper_bound = -(81.9 - 10.0) / np.log(an_ul / cat_ll)
             lower_bound = -(81.9 - 10.0) / np.log(an_ll / cat_ul)
-            #print(tau_e,lower_bound,upper_bound)
-
-
-
 
 	    # we are appending the data to the row which will be written to the file
-	    # col 14 in file is 'cat_ll', first part before '+'
-	    
-            dataToFile[ 13] = str(cat_ll) 
-            dataToFile[ 14] = str(cat_ul)
-            dataToFile[ 15] = str(an_ll)
-            dataToFile[ 16] = str(an_ul)
-
-
-
-            # self.yar.append(yvar)
+            dataToFile[13] = str(cat_ll) 
+            dataToFile[14] = str(cat_ul)
+            dataToFile[15] = str(an_ll)
+            dataToFile[16] = str(an_ul)
 
             self.el.append(tau_e - lower_bound)
             self.eh.append(upper_bound - tau_e)
-            # # errormatrix = np.array( [self.el, self.eh])
-
-            # self.plt1.plot(tfine,self.wavmodel.eval(x=tfine,an=b['an'],cat=b['cat'],cent_c=b['cent_c'],tcrise=b['tcrise'],tarise=b['tarise'],cent_a=b['cent_a'],gam_a=b['gam_a'],gam_c=b['gam_c'],skew_a=b['skew_a'],offst=b['offst']),'r-',label='proposed: an=42.04 mV')
 
             self.plt1.clear()
             self.plt2.clear()
@@ -240,12 +176,7 @@ class grafit(tk.Frame):
             self.plt2.errorbar(self.xar, self.yar, [self.el, self.eh], markersize=6, fmt='o',mec='r',mfc='None')
             self.plt2.set_title("$e^{-}$ Lifetime vs Time")
             self.plt2.set_ylabel('$\\tau$($\mu$s)')
-            #self.plt2.set_yticklabels(['{:1.1e}'.format(x) for x in self.plt2.get_yticks()])
             self.plt2.set_xlabel('Time (h)')
-            # self.plt2.set_ylim(0.0,2.0e4)
-            # self.plt2.tick_params(axis='both',which='major',labelsize=9)
-            # self.plt2.tick_params(axis='both',which='minor',labelsize=9)
-            # self.figure1.tight_layout()
             self.figure2.tight_layout()
             # PLOTTING WAVEFORM:
             # self.plt.subplot(212)
@@ -253,35 +184,19 @@ class grafit(tk.Frame):
             tfine = np.arange(t[0], t[-1] + 0.8, (t[1] - t[0]) / 10.0)
             self.plt1.plot(tfine,
                            self.wavmodel.eval(x=tfine, an=b['an'], cat=b['cat'], cent_c=b['cent_c'], tcrise=b['tcrise'],
-                                              tarise=b['tarise'], cent_a=b['cent_a'], gam_a=b['gam_a'],
-                                              gam_c=b['gam_c'], skew_a=b['skew_a'], offst=b['offst']), 'r-', label='proposed: an=42.04 mV')
+                           tarise=b['tarise'], cent_a=b['cent_a'], gam_a=b['gam_a'],
+                           gam_c=b['gam_c'], skew_a=b['skew_a'], offst=b['offst']), 'r-', label='proposed: an=42.04 mV')
 
             self.plt1.set_title("Most recent waveform")
             self.plt1.set_ylabel("MilliVolts")
             self.plt1.set_xlabel(u"Time (\u03bcs)")
-
-            # self.plt.subplots_adjust(hspace=0.6, wspace=0.6)
-            # self.plot_widget.grid(row=0, column=0, rowspan=2)
-
-            # WIDGET TO SEE MOST RECENT PEAK
-
-            # peak = round(peak, 1)
-            # self.T.insert(tk.END, peak)
-
             self.canvas1.draw_idle()
             self.canvas2.draw_idle()
-        # originally 5:
-        # time.sleep(1.0)
-        self.ctr += 1
 
-        # print('Value of exc',exc)
-        # os._exit(0)
-        #print('Getting here---> plotit')
-        #self.parent.after(1000, self.plotit)
-	
-	
-	
-	
+        else:
+            self.nontopHat = np.array(volt)
+
+        self.ctr += 1
 
         # here we check if the save file has been defined, if so write to it, if not state that it is not set
         try:
@@ -308,6 +223,8 @@ class grafit(tk.Frame):
       self.parent.after(1000,self.ud)
 
     def on_closing(self):
+        for event in schedule.queue :
+          schedule.cancel(event)
         saveFile.close()
         os._exit(0)
 
@@ -346,14 +263,12 @@ class grafit(tk.Frame):
         y = y + offst
         return y
 
-
     def __init__(self, parent):
         self.ctr = 0
         self.start_time = time.time()
         self.topHat = []
         self.nontopHat = []
 
-        # Tk.__init__(self)
         tk.Frame.__init__(self, parent)
 
         # Set up figure and plot
@@ -364,12 +279,12 @@ class grafit(tk.Frame):
 
         self.plt = self.figure.add_subplot(111)
 
-        # Create parent, which is the class Simulator from down below
+        # Create parent, which is the class onlineXPMFitter from down below
         self.parent = parent
         self.T = tk.Text(self.parent, height=1, width=5, font=("Courier", 64))
         self.T.grid(row=0, column=1)
         self.T.config(foreground="blue")
-        self.isStandard = True
+        self.isStandard = False
 
         if self.isStandard :
           self.p_i = [37.873185672822736, 40.81570955383812, 10.0, 1.0, 2.9, 81.9, 1.80825, 0.8, 0.9, 0.2]
@@ -424,9 +339,6 @@ class grafit(tk.Frame):
           self.wavparams['offst'].value = self.p_i[9]
           self.wavparams['offst'].vary = True
         
-        # self.wavmodel = Model(smeared_func,nan_policy='raise')
-
-
         self.pkmodel = SkewedVoigtModel()
         self.catmodel = ExponentialGaussianModel()
         self.pars = self.pkmodel.make_params()
@@ -434,19 +346,8 @@ class grafit(tk.Frame):
 
         self.xar = []
         self.yar = []
-        # self.window = tk.Tk()
         self.el = []
         self.eh = []
-
-        # INITIAL GUI PAGE:
-        # self.window.title('Fiber Alignment Tool')
-        # self.fig = plt.figure(1)
-        # self.fig.text(0.5,0.04,'LOADING...',ha ='center',va = 'center')
-        #self.figure1 = Figure(figsize=(3, 5), dpi=100)
-        #self.figure2 = Figure(figsize=(3, 5), dpi=100)
-
-
-
 
         # next two lines are for the texbox for entries
         self.fileSaveInput = tk.Text( height=1, width=30, bg='gray') # text box( where user enters path)
@@ -480,8 +381,6 @@ class grafit(tk.Frame):
                 self.fileCloseButton = tk.Button(text="Close File", command=lambda:close_saveFile())
                 self.fileCloseButton.grid(row=2, column=2)
 
-
-
         # positioning of the graphs
         self.figure1 = Figure(figsize=(6, 5), dpi=100)
         self.figure2 = Figure(figsize=(6, 5), dpi=100)
@@ -498,7 +397,6 @@ class grafit(tk.Frame):
 
         self.plot_widget1.grid(row=3, column=5)
         self.plot_widget2.grid(row=3, column=6)
-        self.curve = '-51,-51,-50,-50,-50,-50,-50,-50,-50,-50,-50,-49,-49,-49,-49,-49,-49,-49,-49,-49,-49,-49,-48,-48,-48,-48,-48,-48,-48,-48,-48,-48,-48,-48,-48,-48,-48,-48,-48,-48,-48,-48,-48,-47,-47,-47,-47,-47,-47,-47,-47,-47,-47,-47,-47,-47,-47,-47,-47,-47,-47,-48,-48,-48,-47,-47,-48,-48,-48,-48,-48,-48,-48,-48,-48,-48,-48,-48,-48,-48,-48,-48,-48,-48,-49,-49,-49,-49,-49,-49,-49,-49,-49,-49,-49,-49,-49,-50,-50,-50,-50,-50,-50,-50,-50,-50,-50,-51,-51,-51,-51,-51,-51,-51,-51,-51,-51,-51,-52,-52,-52,-52,-52,-52,-52,-52,-52,-52,-52,-52,-52,-53,-53,-53,-53,-53,-53,-53,-53,-53,-53,-53,-54,-54,-54,-54,-54,-54,-54,-54,-54,-54,-54,-54,-54,-55,-55,-55,-55,-55,-55,-55,-55,-55,-55,-55,-55,-55,-56,-55,-56,-56,-56,-56,-56,-56,-56,-56,-56,-56,-56,-56,-56,-56,-56,-56,-56,-56,-56,-56,-56,-56,-56,-56,-56,-56,-57,-56,-57,-57,-57,-57,-57,-57,-57,-57,-57,-57,-57,-57,-57,-57,-57,-57,-57,-57,-57,-57,-57,-57,-57,-57,-57,-57,-57,-57,-57,-57,-57,-57,-57,-57,-57,-57,-57,-57,-57,-57,-57,-57,-57,-57,-57,-57,-57,-57,-57,-57,-57,-57,-57,-57,-57,-57,-57,-57,-57,-57,-57,-56,-57,-57,-57,-57,-56,-56,-56,-56,-56,-56,-56,-56,-56,-56,-56,-56,-56,-56,-56,-56,-56,-56,-56,-56,-56,-56,-56,-56,-56,-56,-56,-56,-56,-56,-56,-56,-56,-56,-56,-56,-56,-56,-56,-56,-56,-56,-56,-56,-56,-56,-56,-56,-56,-56,-56,-56,-56,-56,-56,-56,-56,-56,-56,-56,-56,-56,-56,-56,-56,-56,-56,-56,-56,-56,-56,-56,-56,-56,-56,-56,-56,-56,-56,-56,-56,-56,-56,-56,-56,-56,-56,-56,-56,-56,-56,-56,-55,-55,-55,-55,-55,-55,-55,-55,-55,-55,-55,-55,-55,-55,-55,-55,-55,-55,-55,-55,-55,-55,-55,-55,-55,-55,-55,-55,-55,-55,-55,-55,-55,-55,-55,-55,-55,-55,-55,-55,-55,-55,-55,-55,-55,-55,-55,-55,-55,-55,-55,-55,-55,-55,-55,-55,-55,-55,-55,-55,-55,-55,-55,-55,-55,-55,-55,-55,-55,-55,-55,-55,-55,-55,-55,-55,-55,-55,-55,-55,-55,-55,-55,-55,-55,-55,-55,-55,-55,-55,-55,-55,-55,-55,-55,-55,-55,-55,-55,-55,-55,-55,-55,-55,-55,-55,-55,-55,-55,-55,-55,-55,-55,-55,-55,-55,-55,-55,-55,-55,-55,-55,-55,-55,-55,-55,-55,-55,-55,-55,-55,-55,-55,-55,-55,-55,-55,-55,-54,-55,-54,-55,-55,-54\n'
 
         # self.fig.canvas.draw()
 
