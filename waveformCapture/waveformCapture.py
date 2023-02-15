@@ -1,5 +1,6 @@
 import tkinter as tk
 import requests
+import time
 import datetime as dt
 
 
@@ -35,19 +36,17 @@ class app(tk.Frame):
 
         # keep save paths for file & url
         self.save_paths()
-        self.curr_save_path = self.save_path + 'test01'
 
-        file_state = self.open_save_file()
-        if file_state == True:
-            self.get_and_save()
-            self.app_loop()
-            
+        i = 1
+        while True:
+            self.curr_save_path = self.save_path + 'test' + str(i).zfill(3)
 
-    def app_loop(self):
-        # will make request and save to next file every 5 min
-        
-        pass;
-
+            file_state = self.open_save_file()
+            if file_state == True:
+                self.get_and_save()
+                i += 1
+                # we probably don't want to use sleep... use scheduler?
+                time.sleep(5)
 
     def get_and_save(self):
         # calls the required functions and updates the 'last updated' label
@@ -65,6 +64,7 @@ class app(tk.Frame):
 
     def get_raw_data(self):
         # makes requests and processes data into floats
+        # this request is having difficulties, check with Kolo
 
         data = ''
         f = requests.get(self.url + '/?COMMAND=curve?')
