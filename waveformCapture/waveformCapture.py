@@ -30,7 +30,9 @@ class app(tk.Frame):
         self.url = self.url_entry.get('1.0', 'end-1c')
         self.save_path = self.file_path_entry.get('1.0', 'end-1c')
 
+        self.open_save_file()
         self.get_and_save()
+
 
         # THIS REPEAT ( every 5 min) IS NOT WORKING YET
         #root.after(300000, self.get_and_save)
@@ -41,8 +43,16 @@ class app(tk.Frame):
         # calls the required functions and updates the 'last updated' label
         # do stuff
 
+        
+        #zipped = get_raw_data()
+
+        # send data to be saved to this function
+        #save_data()
+
         current_time = dt.datetime.now().strftime("%H:%M:%S")
         self.last_updated.config(text="Last updated: " + current_time)
+
+
 
 
     def get_raw_data(self):
@@ -66,7 +76,11 @@ class app(tk.Frame):
         return zip(t, volt)
 
 
-    def save_to_file(self):
+    def save_data(self, zipped):
+        # a function to save the zipped data into the open file
+        pass;
+
+    def open_save_file(self):
         # saves the recently received data to new file
         print(self.save_path)
 
@@ -79,7 +93,7 @@ class app(tk.Frame):
             print("Failed to open the file")
 
         # needs to be done at some point
-        saveFile.close()
+        # saveFile.close()
 
 
 
