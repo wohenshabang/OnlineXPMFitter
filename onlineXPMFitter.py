@@ -16,8 +16,6 @@ from scipy import integrate
 from scipy.special import erfc
 from uncertainties.core import wrap
 import sched
-import csv
-
 
 schedule = sched.scheduler(time.time, time.sleep)
 schedule_start_time = 0.0
@@ -167,14 +165,6 @@ class grafit(tk.Frame):
             dataToFile[15] = str(an_ll)
             dataToFile[16] = str(an_ul)
 
-            fh = open(self.savePath, 'a')
-
-            writer = csv.writer(fh)
-            writer.writerows(dataToFile)
-            fh.close()
-
-
-
             self.el.append(tau_e - lower_bound)
             self.eh.append(upper_bound - tau_e)
 
@@ -207,7 +197,7 @@ class grafit(tk.Frame):
             self.nontopHat = np.array(volt)
 
         self.ctr += 1
-        '''
+
         # here we check if the save file has been defined, if so write to it, if not state that it is not set
         try:
             saveFile
@@ -222,8 +212,6 @@ class grafit(tk.Frame):
                 print('Save file has been closed')
         except NameError:
             print('Save file is not set')
-        '''
-
 
     def ud(self) :
       if len( schedule.queue ) > 0 :
@@ -376,14 +364,14 @@ class grafit(tk.Frame):
                 print('File closed')
                 saveFile.close()
 
-            self.savePath=self.fileSaveInput.get('1.0', 'end-1c')
+            savePath=self.fileSaveInput.get('1.0', 'end-1c')
             self.currSavePath = tk.Label(height=1, width=30)
-            self.currSavePath.config(text="Save Path: " + self.savePath)
+            self.currSavePath.config(text="Save Path: " + savePath)
             self.currSavePath.grid(row=2, column=1)
 	
 	    # the file that the info will be saved to( open appropriate one when path is specified)
             global saveFile 
-            saveFile = open(r'%s' % (self.savePath), "a")
+            saveFile = open(r'%s' % (savePath), "a")
 	
             #saveFile.write("Hello saveFile\n")
 
