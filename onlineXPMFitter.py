@@ -8,7 +8,7 @@ from matplotlib.figure import Figure
 from matplotlib.backends.backend_tkagg import (FigureCanvasTkAgg, NavigationToolbar2Tk)
 import urllib.request
 import os
-from pathlib import Path
+from pathlib import WindowsPath
 from lmfit.models import SkewedVoigtModel
 from lmfit.models import ExponentialGaussianModel
 from lmfit import Model
@@ -105,7 +105,7 @@ class grafit(tk.Frame):
         #     self.yar.pop(0)
 
         # FIXME: every other trace is signal+background
-        if self.ctr % 2 == 1 :
+        if  WindowsPath('c:/Users/.shutterclosed').exists() == False:
             self.topHat = np.array(volt)
             dataToFile = []
             for i in range( 17):
@@ -411,13 +411,13 @@ def startSchedule():
     return
 
 def closeshutter(text,dwell) :
-  Path('.shutterclosed').touch()
+  WindowsPath('c:/Users/.shutterclosed').touch()
   return
 
 
 def openshutter(text,dwell) :
   try :
-    Path('.shutterclosed').unlink()
+    WindowsPath('c:/Users/.shutterclosed').unlink()
   except Exception as exc:
     return
   return
