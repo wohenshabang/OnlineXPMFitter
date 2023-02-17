@@ -105,7 +105,7 @@ class grafit(tk.Frame):
         #     self.yar.pop(0)
 
         # FIXME: every other trace is signal+background
-        if  WindowsPath('c:/Users/.shutterclosed').exists() == False:
+        if  (WindowsPath.home() / '.shutterclosed').exists() == False:
             self.topHat = np.array(volt)
             dataToFile = []
             for i in range( 17):
@@ -411,13 +411,13 @@ def startSchedule():
     return
 
 def closeshutter(text,dwell) :
-  WindowsPath('c:/Users/.shutterclosed').touch()
+  (WindowsPath.home() / '.shutterclosed').touch()
   return
 
 
 def openshutter(text,dwell) :
   try :
-    WindowsPath('c:/Users/.shutterclosed').unlink()
+    (WindowsPath.home() / '.shutterclosed').unlink()
   except Exception as exc:
     return
   return
