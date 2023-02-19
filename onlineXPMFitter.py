@@ -12,6 +12,7 @@ from pathlib import WindowsPath
 from lmfit.models import SkewedVoigtModel
 from lmfit.models import ExponentialGaussianModel
 from lmfit import Model
+from lmfit import Minimizer, minimize, fit_report, conf_interval, printfuncs
 from scipy import integrate
 from scipy.special import erfc
 from uncertainties.core import wrap
@@ -20,7 +21,10 @@ import sched
 schedule = sched.scheduler(time.time, time.sleep)
 schedule_start_time = 0.0
 eventList = []
+time0 = []
+volt0 = []
 isfibersave = True
+total = 0.0
 
 
 class grafit(tk.Frame):
@@ -51,8 +55,8 @@ class grafit(tk.Frame):
         # wfmpre = '1;8;ASC;RP;MSB;500;"Ch1, AC coupling, 2.0E-2 V/div, 4.0E-5 s/div, 500 points, Average mode";Y;8.0E-7;0;-1.2E-4;"s";8.0E-4;0.0E0;-5.4E1;"V"'
         t = [1.0e6 * (float(wfmpre.split(';')[8]) * float(i) + float(wfmpre.split(';')[10])) for i in
              range(0, len(wfm))]
-        volt = [1.0e3 * (((float(dl) - float(wfmpre.split(';')[14]))/1.0) * float(wfmpre.split(';')[12]) - float(
-            wfmpre.split(';')[13])) for dl in wfm]
+        volt = [1.0e3 * ( (float(dl) - float(wfmpre.split(';')[14])) * float(wfmpre.split(';')[12]) - float(
+            wfmpre.split(';')[13]) ) for dl in wfm]
 
         return zip(t, volt)
 
@@ -97,16 +101,15 @@ class grafit(tk.Frame):
         # wfmpre = '1;8;ASC;RP;MSB;500;"Ch1, AC coupling, 2.0E-2 V/div, 4.0E-5 s/div, 500 points, Average mode";Y;8.0E-7;0;-1.2E-4;"s";8.0E-4;0.0E0;-5.4E1;"V"'
         t = [1.0e6 * (float(wfmpre.split(';')[8]) * float(i) + float(wfmpre.split(';')[10])) for i in
              range(0, len(wfm))]
-        volt = [1.0e3 * (((float(dl) - float(wfmpre.split(';')[14]))/1.0) * float(wfmpre.split(';')[12]) - float(
+        volt = [1.0e3 * (((float(dl) - float(wfmpre.split(';')[14]))) * float(wfmpre.split(';')[12]) - float(
             wfmpre.split(';')[13])) for dl in wfm]
 
         # if len(self.xar) > 5000:
         #     self.xar.pop(0)
         #     self.yar.pop(0)
 
-        # FIXME: every other trace is signal+background
         if  (WindowsPath.home() / '.shutterclosed').exists() == False:
-            self.topHat = np.array(volt)
+            self.topHat = np.array(wfm)
             dataToFile = []
             for i in range( 17):
                 dataToFile.append(' ')
@@ -118,23 +121,43 @@ class grafit(tk.Frame):
             # Waveform to plot
             print(len(self.topHat), len(self.nontopHat))
             wvPlot = self.topHat - self.nontopHat
-            result = self.wavmodel.fit(wvPlot, self.wavparams, x=t)
+            wvPlot = [1.0e3 * (((float(dl) - float(wfmpre.split(';')[14]))) * float(wfmpre.split(';')[12]) - float(wfmpre.split(';')[13])) for dl in wvPlot]
+            if self.isStandard :
+                wts = np.zeros(len(t))
+                for idx,ti in zip(range(0,len(t)),t) :
+                  if ( ti > -50.0 and ti < -15.0 ) or ( ti > 25.0 and ti < 65.0 ) or ( ti > 125.0 and ti < 150.0 ) :
+                    wts[idx]=1.0
+                result = self.wavmodel.fit(wvPlot, self.wavparams, weights = wts, x=t, method='nelder', max_nfev=1000)
+                b = result.params
+                ci_txt = result.ci_report()
+            else :
+                wts = np.zeros(len(t))
+                for idx,ti in zip(range(0,len(t)),t) :
+                  if ( ti > -50.0 and ti < -15.0 ) or ( ti > 25.0 and ti < 65.0 ) or ( ti > 125.0 and ti < 150.0 ) :
+                    wts[idx]=1.0
+                result = self.wavmodel.fit(wvPlot, self.wavparams, weights = wts, x=t)
+                #result = self.wavmodel.fit(wvPlot, self.wavparams, x=t)
+                b = result.best_values
+                ci_txt = result.ci_report()
+
             # print('results--->', result.ci_out)
-
-            b = result.best_values
-            tfine = np.arange(t[0], t[-1] + 0.8, (t[1] - t[0]) / 10.0)
-
-            ci_txt = result.ci_report()
-            #print(ci_txt)
-
             catrow = (ci_txt.split('\n')[1].split(':')[1])
             anrow = (ci_txt.split('\n')[2].split(':')[1])
             offstrow = (ci_txt.split('\n')[3].split(':')[1])
-            cat = np.fromstring(catrow,dtype=float,sep=' ')[3]
-            an = np.fromstring(anrow,dtype=float,sep=' ')[3]
-            offst = np.fromstring(offstrow,dtype=float,sep=' ')[3]
+            cat = b['cat']
+            an = b['an']
+            offst = b['offst']
+            cat_ll = cat + np.fromstring(catrow,dtype=float,sep=' ')[2]
+            cat_ul = cat + np.fromstring(catrow,dtype=float,sep=' ')[4]
+            an_ll = an + np.fromstring(anrow,dtype=float,sep=' ')[2]
+            an_ul = an + np.fromstring(anrow,dtype=float,sep=' ')[4]
+            #print(ci_txt)
 
-            print('cat and an', cat, an)
+            tfine = np.arange(t[0], t[-1] + 0.8, (t[1] - t[0]) / 10.0)
+
+            #cat=49.98262 
+            #an=46.10659
+            #offst=43.619015
 
             # adding data to list that gets printed to file ( columns 5 and 6)
             dataToFile[4] = str(cat)
@@ -150,12 +173,9 @@ class grafit(tk.Frame):
             ts = self.xar[-1]*3600.0 + self.start_time
             dataToFile[7] = str( ts + 126144000.0 + 2208988800.0 )
             tau_e = (81.9 - 10.0) / np.log(cat / an)
+            print('cat and an', cat, an, offst,tau_e,cat-b['cat'],an-b['an'],offst-b['offst'])
             self.yar.append(tau_e)
 
-            cat_ll = cat + np.fromstring(catrow,dtype=float,sep=' ')[2]
-            cat_ul = cat + np.fromstring(catrow,dtype=float,sep=' ')[4]
-            an_ll = an + np.fromstring(anrow,dtype=float,sep=' ')[2]
-            an_ul = an + np.fromstring(anrow,dtype=float,sep=' ')[4]
             upper_bound = -(81.9 - 10.0) / np.log(an_ul / cat_ll)
             lower_bound = -(81.9 - 10.0) / np.log(an_ll / cat_ul)
 
@@ -182,19 +202,29 @@ class grafit(tk.Frame):
             # self.plt.subplot(212)
             self.plt1.plot(t, wvPlot, 'g-')
             tfine = np.arange(t[0], t[-1] + 0.8, (t[1] - t[0]) / 10.0)
-            self.plt1.plot(tfine,
-                           self.wavmodel.eval(x=tfine, an=b['an'], cat=b['cat'], cent_c=b['cent_c'], tcrise=b['tcrise'],
-                           tarise=b['tarise'], cent_a=b['cent_a'], gam_a=b['gam_a'],
-                           gam_c=b['gam_c'], skew_a=b['skew_a'], offst=b['offst']), 'r-', label='proposed: an=42.04 mV')
+             
+            if self.isStandard :
+                #self.plt1.plot(tfine,
+                #               self.wavmodel.eval(x=tfine, an=b['an'], cat=b['cat'], tcrise=b['tcrise'],
+                #               tarise=b['tarise'], offst=b['offst'], thold=b['thold'] ), 'r-', label='standard')
+                self.plt1.plot(tfine,
+                               self.wavmodel.eval(x=tfine, cat=cat, an=an, tcrise=b['tcrise'],
+                               tarise=b['tarise'], offst=offst, thold=b['thold'] ), 'r-', label='standard')
+            else :
+                self.plt1.plot(tfine,
+                               self.wavmodel.eval(x=tfine, an=b['an'], cat=b['cat'], cent_c=b['cent_c'], tcrise=b['tcrise'],
+                               tarise=b['tarise'], cent_a=b['cent_a'], gam_a=b['gam_a'],
+                               gam_c=b['gam_c'], skew_a=b['skew_a'], offst=b['offst']), 'r-', label='proposed: an=42.04 mV')
 
             self.plt1.set_title("Most recent waveform")
             self.plt1.set_ylabel("MilliVolts")
             self.plt1.set_xlabel(u"Time (\u03bcs)")
+            self.figure1.tight_layout()
             self.canvas1.draw_idle()
             self.canvas2.draw_idle()
 
         else:
-            self.nontopHat = np.array(volt)
+            self.nontopHat = np.array(wfm)
 
         self.ctr += 1
 
@@ -214,13 +244,20 @@ class grafit(tk.Frame):
             print('Save file is not set')
 
     def ud(self) :
-      if len( schedule.queue ) > 0 :
-        ct = int((schedule.queue[0][0] - time.time())*100)
-        if len( schedule.queue[0][3] ) > 1 and ct > 0 :
-          print(schedule.queue[0][3][0]+str(ct/100)+' sec')
-        if len( schedule.queue[0][3] ) == 0 :
-          print('Busy...Downloading waveforms...')
-      self.parent.after(1000,self.ud)
+      try :
+        if len( schedule.queue ) > 0 :
+          ct = int((schedule.queue[0][0] - time.time())*100)
+          if len( schedule.queue[0][3] ) > 1 and ct > 0 :
+            print(schedule.queue[0][3][0]+str(ct/100)+' sec')
+          if len( schedule.queue[0][3] ) == 0 :
+            print('Busy...Downloading waveforms...')
+        self.parent.after(1000,self.ud)
+      except Exception as exc:
+        for event in schedule.queue :
+          schedule.cancel(event)
+        saveFile.close()
+        os._exit(0)
+
 
     def on_closing(self):
         for event in schedule.queue :
@@ -228,15 +265,19 @@ class grafit(tk.Frame):
         saveFile.close()
         os._exit(0)
 
-    def fitter_func(self, x, cat, an, tcrise, tarise, offst, cent_c=0.0, gam_c=0.0, cent_a=0.0, gam_a=0.0, skew_a=0.0 ):
+
+
+
+    def fitter_func(self, x, cat, an, tcrise, tarise, offst,thold ):
         global err
-        thold = 395.3
-        x_beg = x[x<10.0]
-        x_mid = x[(x>=10.0)*(x<81.9)]
-        x_end = x[x>=81.9]
-        y_beg = 0.5*cat*erfc((-x_beg+10.0)/tcrise) - 0.5*an*erfc((-x_beg+81.9)/tarise)
-        y_mid = 0.5*cat*erfc((-x_mid+10.0)/tcrise)*np.exp(-(x_mid-10.0)/thold) - 0.5*an*erfc((-x_mid+81.9)/tarise)
-        y_end = 0.5*cat*erfc((-x_end+10.0)/tcrise)*np.exp(-(x_end-10.0)/thold) - 0.5*an*erfc((-x_end+81.9)/tarise)*np.exp(-(x_end-81.9)/thold)
+        #thold = 395.3
+        z = np.array(x)
+        x_beg = z[z<10.0]
+        x_mid = z[(z>=10.0)*(z<81.9)]
+        x_end = z[z>=81.9]
+        y_beg = 0.5*cat*erfc(-(x_beg-10.0)/tcrise) - 0.5*an*erfc(-(x_beg-81.9)/tarise)
+        y_mid = 0.5*cat*erfc(-(x_mid-10.0)/tcrise)*np.exp(-(x_mid-10.0)/thold) - 0.5*an*erfc(-(x_mid-81.9)/tarise)
+        y_end = 0.5*cat*erfc(-(x_end-10.0)/tcrise)*np.exp(-(x_end-10.0)/thold) - 0.5*an*erfc(-(x_end-81.9)/tarise)*np.exp(-(x_end-81.9)/thold)
         y = np.concatenate((y_beg,y_mid,y_end),axis=None)
         y = y + offst
         return y
@@ -273,43 +314,33 @@ class grafit(tk.Frame):
 
         # Set up figure and plot
         #self.figure = Figure(figsize=(3, 5), dpi=100)
-        self.figure = Figure(figsize=(6, 5), dpi=100)
+        #self.figure = Figure(figsize=(6, 5), dpi=100)
 
         #I changed^^^
 
-        self.plt = self.figure.add_subplot(111)
+        #self.plt = self.figure.add_subplot(111)
 
         # Create parent, which is the class onlineXPMFitter from down below
         self.parent = parent
-        self.T = tk.Text(self.parent, height=1, width=5, font=("Courier", 64))
-        self.T.grid(row=0, column=1)
-        self.T.config(foreground="blue")
+        #self.T = tk.Text(self.parent, height=1, width=5, font=("Courier", 64))
+        #self.T.grid(row=0, column=1)
+        #self.T.config(foreground="blue")
         self.isStandard = False
 
         if self.isStandard :
-          self.p_i = [37.873185672822736, 40.81570955383812, 10.0, 1.0, 2.9, 81.9, 1.80825, 0.8, 0.9, 0.2]
+          self.p_i = [49.98262, 46.10659, 10.0, 1.0, 2.9, 81.9, 395.3, 0.8, 0.9, 43.619015]
           self.wavmodel = Model(self.fitter_func,nan_policy='raise')
           self.wavparams = self.wavmodel.make_params()
           self.wavparams['cat'].value = self.p_i[0]
           self.wavparams['cat'].vary = True
           self.wavparams['an'].value = self.p_i[1]
           self.wavparams['an'].vary = True
-          self.wavparams['cent_c'].value = self.p_i[2]
-          self.wavparams['cent_c'].vary = False
-          # self.wavparams['thold'].value = self.p_i[3]
-          # self.wavparams['thold'].vary = False
+          self.wavparams['thold'].value = self.p_i[6]
+          self.wavparams['thold'].vary = False
           self.wavparams['tcrise'].value = self.p_i[3]
           self.wavparams['tcrise'].vary = False
           self.wavparams['tarise'].value = self.p_i[4]
           self.wavparams['tarise'].vary = False
-          self.wavparams['cent_a'].value = self.p_i[5]
-          self.wavparams['cent_a'].vary = False
-          self.wavparams['gam_a'].value = self.p_i[6]
-          self.wavparams['gam_a'].vary = False
-          self.wavparams['skew_a'].value = self.p_i[7]
-          self.wavparams['skew_a'].vary = False
-          self.wavparams['gam_c'].value = self.p_i[8]
-          self.wavparams['gam_c'].vary = False
           self.wavparams['offst'].value = self.p_i[9]
           self.wavparams['offst'].vary = True
         else :
@@ -351,11 +382,11 @@ class grafit(tk.Frame):
 
         # next two lines are for the texbox for entries
         self.fileSaveInput = tk.Text( height=1, width=30, bg='gray') # text box( where user enters path)
-        self.fileSaveInput.grid( row=1, column=1)
+        self.fileSaveInput.grid( row=0, column=1)
 
         # button to commit the save path
         self.commitLocationButton = tk.Button(text="Commit Path", command=lambda:set_saveFile())
-        self.commitLocationButton.grid(row=1, column=2)
+        self.commitLocationButton.grid(row=0, column=2)
 
         # getting the input save path from user input in textbox
         def set_saveFile():
@@ -382,8 +413,8 @@ class grafit(tk.Frame):
                 self.fileCloseButton.grid(row=2, column=2)
 
         # positioning of the graphs
-        self.figure1 = Figure(figsize=(6, 5), dpi=100)
-        self.figure2 = Figure(figsize=(6, 5), dpi=100)
+        self.figure1 = Figure(figsize=(4, 4), dpi=100)
+        self.figure2 = Figure(figsize=(4, 4), dpi=100)
 
         self.plt1 = self.figure1.add_subplot(111)
         self.plt2 = self.figure2.add_subplot(111)
@@ -395,8 +426,8 @@ class grafit(tk.Frame):
         self.plot_widget1 = self.canvas1.get_tk_widget()
         self.plot_widget2 = self.canvas2.get_tk_widget()
 
-        self.plot_widget1.grid(row=3, column=5)
-        self.plot_widget2.grid(row=3, column=6)
+        self.plot_widget1.grid(row=0, column=5)
+        self.plot_widget2.grid(row=0, column=6)
 
         # self.fig.canvas.draw()
 
@@ -424,52 +455,59 @@ def openshutter(text,dwell) :
 
 
 def control():
-  total = 0.0
   while True :
-    dwellclosed = 32.0
-    dwellopen = 33.0
-    fibersavetime = 300.0 #for fibersave
-    tbc = dwellclosed
-    tf = 0
-    if len( schedule.queue ) == 0 or ( len(schedule.queue) == 7  and root.graph.ctr > 0 ) : 
-      for iii in range(0,10) :
-        iodelay = 12
-        text = '*Initializing acquisition ---SHUTTER CLOSED--- '
-        if isfibersave and root.graph.ctr > 0 and iii == 0 :
-          text = '*Fiber-saving mode: ---SHUTTER CLOSED--- resume in '
-        schedule.enter( total, 1, closeshutter, argument=(text,1.0) )
-        text = '*Acquisition mode ---SHUTTER CLOSED--- capture background trace in '
-        #if isfibersave and root.graph.ctr > 0 :
-        #  text = '*Fiber-saving mode: ---SHUTTER CLOSED--- next acquisition in '
-        total = total + 1 + dwellclosed
-        schedule.enter( total, 1, root.graph.plotit, argument=(text,dwellclosed) )
-        #total = total + iodelay
-        total = total + 1
-        text = '*Capturing (signal+background) ---OPENING SHUTTER--- '
-        schedule.enter( total, 1, openshutter, argument=(text,1.0) )
-        text = 'Acquisition mode ---SHUTTER OPEN--- capture (signal+background) in '
-        total = total + dwellopen 
-        schedule.enter( total, 1, root.graph.plotit, argument=(text,dwellopen))
-        #text = 'Acquisition mode ---SHUTTER OPEN--- capturing laser traces '
-        total = total + 1
-        schedule.enter( total, 1, root.graph.plotit , argument = ('Getting UV Laser trace ',1.0,True) )
-        total = total + 1
-        schedule.enter( total, 1, root.graph.plotit , argument = ('Getting IR Laser trace ',1.0,True) )
-        if isfibersave and iii == 9 :
-          text = '*Fiber-saving mode: ---CLOSING SHUTTER--- '
-          #print(text)
-          total = total + 1
+    try :
+      global total
+      dwellclosed = 32.0
+      dwellopen = 33.0
+      fibersavetime = 300.0 #for fibersave
+      tbc = dwellclosed
+      tf = 0
+      if len( schedule.queue ) == 0 or ( len(schedule.queue) == 7  and root.graph.ctr > 0 ) : 
+        for iii in range(0,10) :
+          iodelay = 12
+          text = '*Initializing acquisition ---SHUTTER CLOSED--- '
+          if isfibersave and root.graph.ctr > 0 and iii == 0 :
+            text = '*Fiber-saving mode: ---SHUTTER CLOSED--- resume in '
           schedule.enter( total, 1, closeshutter, argument=(text,1.0) )
-          total = total + fibersavetime
+          text = '*Acquisition mode ---SHUTTER CLOSED--- capture background trace in '
+          #if isfibersave and root.graph.ctr > 0 :
+          #  text = '*Fiber-saving mode: ---SHUTTER CLOSED--- next acquisition in '
+          total = total + 1 + dwellclosed
+          schedule.enter( total, 1, root.graph.plotit, argument=(text,dwellclosed) )
+          #total = total + iodelay
+          total = total + 1
+          text = '*Capturing (signal+background) ---OPENING SHUTTER--- '
+          schedule.enter( total, 1, openshutter, argument=(text,1.0) )
+          text = 'Acquisition mode ---SHUTTER OPEN--- capture (signal+background) in '
+          total = total + dwellopen 
+          schedule.enter( total, 1, root.graph.plotit, argument=(text,dwellopen))
+          #text = 'Acquisition mode ---SHUTTER OPEN--- capturing laser traces '
+          total = total + 1
+          schedule.enter( total, 1, root.graph.plotit , argument = ('Getting UV Laser trace ',1.0,True) )
+          total = total + 1
+          schedule.enter( total, 1, root.graph.plotit , argument = ('Getting IR Laser trace ',1.0,True) )
+          if isfibersave and iii == 9 :
+            text = '*Fiber-saving mode: ---CLOSING SHUTTER--- '
+            #print(text)
+            total = total + 1
+            schedule.enter( total, 1, closeshutter, argument=(text,1.0) )
+            total = total + fibersavetime
+          else :
+            total = total + 1
+            text = '*Acquisition mode ---CLOSING SHUTTER--- preparing next acquisition '
+            schedule.enter( total, 1, closeshutter, argument=(text,1.0) )
+            total = total + tbc
+        if isfibersave : 
+          total = fibersavetime
         else :
-          total = total + 1
-          text = '*Acquisition mode ---CLOSING SHUTTER--- preparing next acquisition '
-          schedule.enter( total, 1, closeshutter, argument=(text,1.0) )
-          total = total + tbc
-      if isfibersave : 
-        total = fibersavetime
-      else :
-        total = tbc
+          total = tbc
+    except Exception as exc :
+      for event in schedule.queue :
+        schedule.cancel(event)
+      saveFile.close()
+      os._exit(0)
+
 def fitScheduler(graph):
     #
     # populate schedule
@@ -518,8 +556,10 @@ root = onlineXPMFitter()
 scheduThread = threading.Thread(target=startSchedule)
 controlThread = threading.Thread(target=control)
 schedule_start_time = time.time()
+controlThread.setDaemon(True)
 controlThread.start()
 root.graph.ud()
 time.sleep(1.0)
+scheduThread.setDaemon(True)
 scheduThread.start()
 root.mainloop()
