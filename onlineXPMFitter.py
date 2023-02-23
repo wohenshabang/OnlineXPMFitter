@@ -271,6 +271,7 @@ class grafit(tk.Frame):
         for event in schedule.queue :
           schedule.cancel(event)
         saveFile.close()
+        self.openshutter()
         os._exit(0)
 
 
@@ -278,6 +279,7 @@ class grafit(tk.Frame):
         for event in schedule.queue :
           schedule.cancel(event)
         saveFile.close()
+        self.openshutter()
         os._exit(0)
 
 
@@ -318,6 +320,62 @@ class grafit(tk.Frame):
         y = y - integral_a * np.exp(-(x - 81.9) / 395.3)
         y = y + offst
         return y
+
+    def control(self):
+      #while True :
+        try :
+          global total
+          dwellclosed = 32.0
+          dwellopen = 33.0
+          fibersavetime = 300.0 #for fibersave
+          tbc = dwellclosed
+          tf = 0 
+          if len( schedule.queue ) == 0 or ( len(schedule.queue) == 7  and root.graph.ctr > 0 ) : 
+            for iii in range(0,10) :
+              iodelay = 12
+              text = '*Initializing acquisition ---SHUTTER CLOSED--- '
+              if isfibersave and root.graph.ctr > 0 and iii == 0 : 
+                text = '*Fiber-saving mode: ---SHUTTER CLOSED--- resume in '
+              schedule.enter( total, 1, closeshutter, argument=(text,1.0) )
+              text = '*Acquisition mode ---SHUTTER CLOSED--- capture background trace in '
+              #if isfibersave and root.graph.ctr > 0 :
+              #  text = '*Fiber-saving mode: ---SHUTTER CLOSED--- next acquisition in '
+              total = total + 1 + dwellclosed
+              schedule.enter( total, 1, root.graph.plotit, argument=(text,dwellclosed) )
+              #total = total + iodelay
+              total = total + 1 
+              text = '*Capturing (signal+background) ---OPENING SHUTTER--- '
+              schedule.enter( total, 1, openshutter, argument=(text,1.0) )
+              text = 'Acquisition mode ---SHUTTER OPEN--- capture (signal+background) in '
+              total = total + dwellopen 
+              schedule.enter( total, 1, root.graph.plotit, argument=(text,dwellopen))
+              #text = 'Acquisition mode ---SHUTTER OPEN--- capturing laser traces '
+              total = total + 1 
+              schedule.enter( total, 1, root.graph.plotit , argument = ('Getting UV Laser trace ',1.0,True) )
+              total = total + 1 
+              schedule.enter( total, 1, root.graph.plotit , argument = ('Getting IR Laser trace ',1.0,True) )
+              if isfibersave and iii == 9 : 
+                text = '*Fiber-saving mode: ---CLOSING SHUTTER--- '
+                #print(text)
+                total = total + 1 
+                schedule.enter( total, 1, closeshutter, argument=(text,1.0) )
+                total = total + fibersavetime
+              else :
+                total = total + 1 
+                text = '*Acquisition mode ---CLOSING SHUTTER--- preparing next acquisition '
+                schedule.enter( total, 1, closeshutter, argument=(text,1.0) )
+                total = total + tbc 
+            if isfibersave : 
+              total = fibersavetime
+            else :
+              total = tbc 
+        except Exception as exc :
+          for event in schedule.queue :
+            schedule.cancel(event)
+          saveFile.close()
+          os._exit(0)
+
+        self.parent.after(10, self.control)
 
     def __init__(self, parent):
         self.ctr = 0
@@ -476,60 +534,6 @@ def openshutter(text,dwell) :
   return
 
 
-def control():
-  while True :
-    try :
-      global total
-      dwellclosed = 32.0
-      dwellopen = 33.0
-      fibersavetime = 300.0 #for fibersave
-      tbc = dwellclosed
-      tf = 0
-      if len( schedule.queue ) == 0 or ( len(schedule.queue) == 7  and root.graph.ctr > 0 ) : 
-        for iii in range(0,10) :
-          iodelay = 12
-          text = '*Initializing acquisition ---SHUTTER CLOSED--- '
-          if isfibersave and root.graph.ctr > 0 and iii == 0 :
-            text = '*Fiber-saving mode: ---SHUTTER CLOSED--- resume in '
-          schedule.enter( total, 1, closeshutter, argument=(text,1.0) )
-          text = '*Acquisition mode ---SHUTTER CLOSED--- capture background trace in '
-          #if isfibersave and root.graph.ctr > 0 :
-          #  text = '*Fiber-saving mode: ---SHUTTER CLOSED--- next acquisition in '
-          total = total + 1 + dwellclosed
-          schedule.enter( total, 1, root.graph.plotit, argument=(text,dwellclosed) )
-          #total = total + iodelay
-          total = total + 1
-          text = '*Capturing (signal+background) ---OPENING SHUTTER--- '
-          schedule.enter( total, 1, openshutter, argument=(text,1.0) )
-          text = 'Acquisition mode ---SHUTTER OPEN--- capture (signal+background) in '
-          total = total + dwellopen 
-          schedule.enter( total, 1, root.graph.plotit, argument=(text,dwellopen))
-          #text = 'Acquisition mode ---SHUTTER OPEN--- capturing laser traces '
-          total = total + 1
-          schedule.enter( total, 1, root.graph.plotit , argument = ('Getting UV Laser trace ',1.0,True) )
-          total = total + 1
-          schedule.enter( total, 1, root.graph.plotit , argument = ('Getting IR Laser trace ',1.0,True) )
-          if isfibersave and iii == 9 :
-            text = '*Fiber-saving mode: ---CLOSING SHUTTER--- '
-            #print(text)
-            total = total + 1
-            schedule.enter( total, 1, closeshutter, argument=(text,1.0) )
-            total = total + fibersavetime
-          else :
-            total = total + 1
-            text = '*Acquisition mode ---CLOSING SHUTTER--- preparing next acquisition '
-            schedule.enter( total, 1, closeshutter, argument=(text,1.0) )
-            total = total + tbc
-        if isfibersave : 
-          total = fibersavetime
-        else :
-          total = tbc
-    except Exception as exc :
-      for event in schedule.queue :
-        schedule.cancel(event)
-      saveFile.close()
-      os._exit(0)
-
 def fitScheduler(graph):
     #
     # populate schedule
@@ -576,10 +580,11 @@ root = onlineXPMFitter()
 #fitScheduler(root.graph)
 #print('fit' +str(schedule.queue[:][0]))
 scheduThread = threading.Thread(target=startSchedule)
-controlThread = threading.Thread(target=control)
+#controlThread = threading.Thread(target=control)
 schedule_start_time = time.time()
-controlThread.setDaemon(True)
-controlThread.start()
+#controlThread.setDaemon(True)
+#controlThread.start()
+root.graph.control()
 root.graph.ud()
 time.sleep(1.0)
 scheduThread.setDaemon(True)
