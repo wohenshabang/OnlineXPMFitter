@@ -8,7 +8,7 @@ from matplotlib.figure import Figure
 from matplotlib.backends.backend_tkagg import (FigureCanvasTkAgg, NavigationToolbar2Tk)
 import urllib.request
 import os
-from pathlib import WindowsPath
+from pathlib import WindowsPath, Path
 from lmfit.models import SkewedVoigtModel
 from lmfit.models import ExponentialGaussianModel
 from lmfit import Model
@@ -109,16 +109,22 @@ class grafit(tk.Frame):
         #     self.xar.pop(0)
         #     self.yar.pop(0)
 
-        if  (WindowsPath.home() / '.shutterclosed').exists() == False:
+        try:
+            pathExists = (WindowsPath.home() / '.shutterclosed').exists()
+        except:
+            pathExists = Path('/tmp/.shutterclosed').exists()
+        
+
+        #if  (WindowsPath.home() / '.shutterclosed').exists() == False:
+        if pathExists == False:
             self.topHat = np.array(wfm)
-            dataToFile = []
-            for i in range( 17):
-                dataToFile.append(' ')
+            dataToFile = np.zeros(17)
+
             #timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            dataToFile[0] = '10.0'
-            dataToFile[1] = '81.9'
-            dataToFile[2] = '1.0'
-            dataToFile[3] = '2.9'
+            dataToFile[0] = 10.0
+            dataToFile[1] = 81.9
+            dataToFile[2] = 1.0
+            dataToFile[3] = 2.9
             # Waveform to plot
             print(len(self.topHat), len(self.nontopHat))
             wvPlot = self.topHat - self.nontopHat
@@ -161,14 +167,14 @@ class grafit(tk.Frame):
             #offst=43.619015
 
             # adding data to list that gets printed to file ( columns 5 and 6)
-            dataToFile[4] = str(cat)
-            dataToFile[5] = str(an)
-            dataToFile[6] = str(offst)
-            dataToFile[8] = str(0.0) #UV
-            dataToFile[9] = str(0.0) #IR
-            dataToFile[10] = str(result.chisqr/result.nfree) #reduced chisq
-            dataToFile[11] = str(0.0)
-            dataToFile[12] = str(0.0)
+            dataToFile[4] = float(cat)
+            dataToFile[5] = float(an)
+            dataToFile[6] = float(offst)
+            dataToFile[8] = float(0.0) #UV
+            dataToFile[9] = float(0.0) #IR
+            dataToFile[10] = float(result.chisqr/result.nfree) #reduced chisq
+            dataToFile[11] = float(0.0)
+            dataToFile[12] = float(0.0)
 
             self.xar.append((time.time() - self.start_time) / 3600)
             ts = self.xar[-1]*3600.0 + self.start_time
@@ -181,15 +187,15 @@ class grafit(tk.Frame):
             lower_bound = -(81.9 - 10.0) / np.log(an_ll / cat_ul)
 
 	    # we are appending the data to the row which will be written to the file
-            dataToFile[13] = str(cat_ll) 
-            dataToFile[14] = str(cat_ul)
-            dataToFile[15] = str(an_ll)
-            dataToFile[16] = str(an_ul)
+            dataToFile[13] = float(cat_ll) 
+            dataToFile[14] = float(cat_ul)
+            dataToFile[15] = float(an_ll)
+            dataToFile[16] = float(an_ul)
 
             fh = open(self.savePath, 'a')
 
             writer = csv.writer(fh)
-            writer.writerows(dataToFile)
+            writer.writerows([dataToFile])
             fh.close()
 
             self.el.append(tau_e - lower_bound)
@@ -234,7 +240,7 @@ class grafit(tk.Frame):
             self.nontopHat = np.array(wfm)
 
         self.ctr += 1
-        '''
+
         # here we check if the save file has been defined, if so write to it, if not state that it is not set
         try:
             saveFile
@@ -243,13 +249,13 @@ class grafit(tk.Frame):
                 #try:
                 #    dataToFile
                 #    if dataToFile.
-                saveData = str( ','.join( str(i) for i in dataToFile)) + '\n'
-                saveFile.write(saveData)
+                #saveData = str( ','.join( str(i) for i in dataToFile)) + '\n'
+                #saveFile.write(saveData)
             else:
                 print('Save file has been closed')
         except NameError:
             print('Save file is not set')
-        '''
+
 
 
     def ud(self) :
@@ -451,15 +457,22 @@ def startSchedule():
     return
 
 def closeshutter(text,dwell) :
-  (WindowsPath.home() / '.shutterclosed').touch()
+  try:
+    (WindowsPath.home() / '.shutterclosed').touch()
+  except:
+    Path('/tmp/.shutterclosed').touch()
   return
 
 
 def openshutter(text,dwell) :
-  try :
-    (WindowsPath.home() / '.shutterclosed').unlink()
-  except Exception as exc:
-    return
+  try:
+    pathExists = (WindowsPath.home() / '.shutterclosed').exists()
+    if pathExists == True:
+      (WindowsPath.home() / '.shutterclosed').unlink()
+  except:
+    pathExists = Path('/tmp/.shutterclosed').exists()
+    if pathExists == True:
+      Path('/tmp/.shutterclosed').unlink()
   return
 
 
