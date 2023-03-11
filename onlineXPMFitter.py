@@ -27,6 +27,51 @@ volt0 = []
 isfibersave = True
 total = 0.0
 
+def startSchedule():
+    while len( schedule.queue ) < 63 :
+      pass
+    schedule.run()
+    return
+
+def closeshutter(text,dwell) :
+  try:
+    (WindowsPath.home() / '.shutterclosed').touch()
+  except:
+    Path('/tmp/.shutterclosed').touch()
+  return
+
+def openshutter(text,dwell) :
+  try:
+    pathExists = (WindowsPath.home() / '.shutterclosed').exists()
+    if pathExists == True:
+      (WindowsPath.home() / '.shutterclosed').unlink()
+  except:
+    pathExists = Path('/tmp/.shutterclosed').exists()
+    if pathExists == True:
+      Path('/tmp/.shutterclosed').unlink()
+  return
+
+def fitScheduler(graph):
+    #
+    # populate schedule
+    dwellclosed = 12.0
+    dwellopen = 15.0
+    tbc = dwellopen
+    tf = 0
+    iodelay = 15
+    text = 'Acquisition mode ---SHUTTER CLOSED--- capture background trace in '
+    schedule.enter( tf, 1, closeshutter, argument=(text,dwellclosed) )
+    schedule.enter( tf + dwellclosed, 1, root.graph.plotit )
+    text = 'Acquisition mode ---SHUTTER OPEN--- capture (signal+background) in '
+    schedule.enter( tf + dwellclosed + iodelay, 1, openshutter, argument=(text,dwellopen) )
+    #text = 'Acquisition mode ---SHUTTER OPEN--- capture (signal+background) in '
+    schedule.enter( tf + dwellclosed + iodelay + dwellopen, 1, root.graph.plotit)
+    #text = 'Acquisition mode ---SHUTTER OPEN--- capturing laser traces '
+    schedule.enter( tf + dwellclosed + iodelay + dwellopen + iodelay, 1, root.graph.plotit, argument=[True] )
+    schedule.enter( tf + dwellclosed + iodelay + dwellopen + iodelay + iodelay, 1, root.graph.plotit , argument=[True] )
+    text = 'Acquisition mode ---SHUTTER OPEN--- next acquisition in '
+    schedule.enter( tf + dwellclosed + iodelay + dwellopen + iodelay + iodelay + iodelay, 1, openshutter, argument=(text,tbc) )
+    return schedule.queue
 
 class grafit(tk.Frame):
     def updateShutter(self, shutterState):
@@ -186,7 +231,7 @@ class grafit(tk.Frame):
             upper_bound = -(81.9 - 10.0) / np.log(an_ul / cat_ll)
             lower_bound = -(81.9 - 10.0) / np.log(an_ll / cat_ul)
 
-	    # we are appending the data to the row which will be written to the file
+      # we are appending the data to the row which will be written to the file
             dataToFile[13] = float(cat_ll) 
             dataToFile[14] = float(cat_ul)
             dataToFile[15] = float(an_ll)
@@ -257,33 +302,28 @@ class grafit(tk.Frame):
             print('Save file is not set')
 
 
-
     def ud(self) :
-      try :
-        if len( schedule.queue ) > 0 :
-          ct = int((schedule.queue[0][0] - time.time())*100)
-          if len( schedule.queue[0][3] ) > 1 and ct > 0 :
-            print(schedule.queue[0][3][0]+str(ct/100)+' sec')
-          if len( schedule.queue[0][3] ) == 0 :
-            print('Busy...Downloading waveforms...')
+        try :
+            if len( schedule.queue ) > 0 :
+                ct = int((schedule.queue[0][0] - time.time())*100)
+            if len( schedule.queue[0][3] ) > 1 and ct > 0 :
+                print(schedule.queue[0][3][0]+str(ct/100)+' sec')
+            if len( schedule.queue[0][3] ) == 0 :
+                print('Busy...Downloading waveforms...')
+        except Exception as exc:
+            for event in schedule.queue :
+                schedule.cancel(event)
+            saveFile.close()
+            openshutter('',0.0)
+            #os._exit(0)
         self.parent.after(1000,self.ud)
-      except Exception as exc:
-        for event in schedule.queue :
-          schedule.cancel(event)
-        saveFile.close()
-        self.openshutter()
-        os._exit(0)
-
 
     def on_closing(self):
         for event in schedule.queue :
           schedule.cancel(event)
         saveFile.close()
-        self.openshutter()
-        os._exit(0)
-
-
-
+        openshutter('',0.0)
+        #os._exit(0)
 
     def fitter_func(self, x, cat, an, tcrise, tarise, offst,thold ):
         global err
@@ -322,59 +362,57 @@ class grafit(tk.Frame):
         return y
 
     def control(self):
-      #while True :
         try :
-          global total
-          dwellclosed = 32.0
-          dwellopen = 33.0
-          fibersavetime = 300.0 #for fibersave
-          tbc = dwellclosed
-          tf = 0 
-          if len( schedule.queue ) == 0 or ( len(schedule.queue) == 7  and root.graph.ctr > 0 ) : 
-            for iii in range(0,10) :
-              iodelay = 12
-              text = '*Initializing acquisition ---SHUTTER CLOSED--- '
-              if isfibersave and root.graph.ctr > 0 and iii == 0 : 
-                text = '*Fiber-saving mode: ---SHUTTER CLOSED--- resume in '
-              schedule.enter( total, 1, closeshutter, argument=(text,1.0) )
-              text = '*Acquisition mode ---SHUTTER CLOSED--- capture background trace in '
-              #if isfibersave and root.graph.ctr > 0 :
-              #  text = '*Fiber-saving mode: ---SHUTTER CLOSED--- next acquisition in '
-              total = total + 1 + dwellclosed
-              schedule.enter( total, 1, root.graph.plotit, argument=(text,dwellclosed) )
-              #total = total + iodelay
-              total = total + 1 
-              text = '*Capturing (signal+background) ---OPENING SHUTTER--- '
-              schedule.enter( total, 1, openshutter, argument=(text,1.0) )
-              text = 'Acquisition mode ---SHUTTER OPEN--- capture (signal+background) in '
-              total = total + dwellopen 
-              schedule.enter( total, 1, root.graph.plotit, argument=(text,dwellopen))
-              #text = 'Acquisition mode ---SHUTTER OPEN--- capturing laser traces '
-              total = total + 1 
-              schedule.enter( total, 1, root.graph.plotit , argument = ('Getting UV Laser trace ',1.0,True) )
-              total = total + 1 
-              schedule.enter( total, 1, root.graph.plotit , argument = ('Getting IR Laser trace ',1.0,True) )
-              if isfibersave and iii == 9 : 
-                text = '*Fiber-saving mode: ---CLOSING SHUTTER--- '
-                #print(text)
-                total = total + 1 
-                schedule.enter( total, 1, closeshutter, argument=(text,1.0) )
-                total = total + fibersavetime
-              else :
-                total = total + 1 
-                text = '*Acquisition mode ---CLOSING SHUTTER--- preparing next acquisition '
-                schedule.enter( total, 1, closeshutter, argument=(text,1.0) )
-                total = total + tbc 
-            if isfibersave : 
-              total = fibersavetime
-            else :
-              total = tbc 
+            global total
+            dwellclosed = 32.0
+            dwellopen = 33.0
+            fibersavetime = 300.0 #for fibersave
+            tbc = dwellclosed
+            tf = 0 
+            if len( schedule.queue ) == 0 or ( len(schedule.queue) == 7  and root.graph.ctr > 0 ) : 
+                for iii in range(0,10) :
+                    iodelay = 12
+                    text = '*Initializing acquisition ---SHUTTER CLOSED--- '
+                    if isfibersave and root.graph.ctr > 0 and iii == 0 : 
+                        text = '*Fiber-saving mode: ---SHUTTER CLOSED--- resume in '
+                        schedule.enter( total, 1, closeshutter, argument=(text,1.0) )
+                        text = '*Acquisition mode ---SHUTTER CLOSED--- capture background trace in '
+                        #if isfibersave and root.graph.ctr > 0 :
+                        #  text = '*Fiber-saving mode: ---SHUTTER CLOSED--- next acquisition in '
+                        total = total + 1 + dwellclosed
+                        schedule.enter( total, 1, root.graph.plotit, argument=(text,dwellclosed) )
+                        #total = total + iodelay
+                        total = total + 1 
+                        text = '*Capturing (signal+background) ---OPENING SHUTTER--- '
+                        schedule.enter( total, 1, openshutter, argument=(text,1.0) )
+                        text = 'Acquisition mode ---SHUTTER OPEN--- capture (signal+background) in '
+                        total = total + dwellopen 
+                        schedule.enter( total, 1, root.graph.plotit, argument=(text,dwellopen))
+                        #text = 'Acquisition mode ---SHUTTER OPEN--- capturing laser traces '
+                        total = total + 1 
+                        schedule.enter( total, 1, root.graph.plotit , argument = ('Getting UV Laser trace ',1.0,True) )
+                        total = total + 1 
+                        schedule.enter( total, 1, root.graph.plotit , argument = ('Getting IR Laser trace ',1.0,True) )
+                    if isfibersave and iii == 9 : 
+                        text = '*Fiber-saving mode: ---CLOSING SHUTTER--- '
+                        #print(text)
+                        total = total + 1 
+                        schedule.enter( total, 1, closeshutter, argument=(text,1.0) )
+                        total = total + fibersavetime
+                    else :
+                        total = total + 1 
+                        text = '*Acquisition mode ---CLOSING SHUTTER--- preparing next acquisition '
+                        schedule.enter( total, 1, closeshutter, argument=(text,1.0) )
+                        total = total + tbc 
+                if isfibersave : 
+                    total = fibersavetime
+                else :
+                    total = tbc
         except Exception as exc :
-          for event in schedule.queue :
-            schedule.cancel(event)
-          saveFile.close()
-          os._exit(0)
-
+            for event in schedule.queue :
+                schedule.cancel(event)
+            saveFile.close()
+            os._exit(0)
         self.parent.after(10, self.control)
 
     def __init__(self, parent):
@@ -455,6 +493,7 @@ class grafit(tk.Frame):
 
         # next two lines are for the texbox for entries
         self.fileSaveInput = tk.Text( height=1, width=30, bg='gray') # text box( where user enters path)
+        self.fileSaveInput.insert(tk.END,'testData')
         self.fileSaveInput.grid( row=0, column=1)
 
         # button to commit the save path
@@ -472,19 +511,20 @@ class grafit(tk.Frame):
             self.currSavePath = tk.Label(height=1, width=30)
             self.currSavePath.config(text="Save Path: " + self.savePath)
             self.currSavePath.grid(row=2, column=1)
-	
-	    # the file that the info will be saved to( open appropriate one when path is specified)
+  
+      # the file that the info will be saved to( open appropriate one when path is specified)
             global saveFile 
             saveFile = open(r'%s' % (self.savePath), "a")
-	
+  
             #saveFile.write("Hello saveFile\n")
 
-	    # if opened successfully, display file close button
+      # if opened successfully, display file close button
             if( saveFile):
                 # button to close save file
                 self.fileCloseButton = tk.Button(text="Close File", command=lambda:close_saveFile())
                 self.fileCloseButton.grid(row=2, column=2)
 
+        set_saveFile()
         # positioning of the graphs
         self.figure1 = Figure(figsize=(4, 4), dpi=100)
         self.figure2 = Figure(figsize=(4, 4), dpi=100)
@@ -507,54 +547,6 @@ class grafit(tk.Frame):
         # self.plotter = threading.Thread(target=self.plotit)
         # self.plotter.setDaemon(True) # MAKES CODE THREAD SAFE
 
-
-def startSchedule():
-    while len( schedule.queue ) < 63 :
-      pass
-    schedule.run()
-    return
-
-def closeshutter(text,dwell) :
-  try:
-    (WindowsPath.home() / '.shutterclosed').touch()
-  except:
-    Path('/tmp/.shutterclosed').touch()
-  return
-
-
-def openshutter(text,dwell) :
-  try:
-    pathExists = (WindowsPath.home() / '.shutterclosed').exists()
-    if pathExists == True:
-      (WindowsPath.home() / '.shutterclosed').unlink()
-  except:
-    pathExists = Path('/tmp/.shutterclosed').exists()
-    if pathExists == True:
-      Path('/tmp/.shutterclosed').unlink()
-  return
-
-
-def fitScheduler(graph):
-    #
-    # populate schedule
-    dwellclosed = 12.0
-    dwellopen = 15.0
-    tbc = dwellopen
-    tf = 0
-    iodelay = 15
-    text = 'Acquisition mode ---SHUTTER CLOSED--- capture background trace in '
-    schedule.enter( tf, 1, closeshutter, argument=(text,dwellclosed) )
-    schedule.enter( tf + dwellclosed, 1, root.graph.plotit )
-    text = 'Acquisition mode ---SHUTTER OPEN--- capture (signal+background) in '
-    schedule.enter( tf + dwellclosed + iodelay, 1, openshutter, argument=(text,dwellopen) )
-    #text = 'Acquisition mode ---SHUTTER OPEN--- capture (signal+background) in '
-    schedule.enter( tf + dwellclosed + iodelay + dwellopen, 1, root.graph.plotit)
-    #text = 'Acquisition mode ---SHUTTER OPEN--- capturing laser traces '
-    schedule.enter( tf + dwellclosed + iodelay + dwellopen + iodelay, 1, root.graph.plotit, argument=[True] )
-    schedule.enter( tf + dwellclosed + iodelay + dwellopen + iodelay + iodelay, 1, root.graph.plotit , argument=[True] )
-    text = 'Acquisition mode ---SHUTTER OPEN--- next acquisition in '
-    schedule.enter( tf + dwellclosed + iodelay + dwellopen + iodelay + iodelay + iodelay, 1, openshutter, argument=(text,tbc) )
-    return schedule.queue
 
 
 class onlineXPMFitter(tk.Tk):
