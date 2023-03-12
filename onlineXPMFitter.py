@@ -316,7 +316,7 @@ class grafit(tk.Frame):
                 schedule.cancel(event)
             saveFile.close()
             openshutter('',0.0)
-            #os._exit(0)
+            os._exit(0)
         self.parent.after(1000,self.ud)
 
     def on_closing(self):
@@ -324,7 +324,7 @@ class grafit(tk.Frame):
             schedule.cancel(event)
         saveFile.close()
         openshutter('',0.0)
-        #os._exit(0)
+        os._exit(0)
 
     def fitter_func(self, x, cat, an, tcrise, tarise, offst,thold ):
         global err
