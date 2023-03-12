@@ -183,7 +183,7 @@ class grafit(tk.Frame):
                 b = result.params
                 ci_txt = result.ci_report()
             else :
-                wts = np.zeros(len(t))
+                wts = np.ones(len(t))
                 for idx,ti in zip(range(0,len(t)),t) :
                   if ( ti > -50.0 and ti < -15.0 ) or ( ti > 25.0 and ti < 65.0 ) or ( ti > 125.0 and ti < 150.0 ) :
                     wts[idx]=1.0
@@ -298,12 +298,13 @@ class grafit(tk.Frame):
                 #saveFile.write(saveData)
             else:
                 print('Save file has been closed')
-        except NameError:
+        except :
             print('Save file is not set')
 
 
     def ud(self) :
         try :
+            #print('schedule length',len(schedule.queue))
             if len( schedule.queue ) > 0 :
                 ct = int((schedule.queue[0][0] - time.time())*100)
             if len( schedule.queue[0][3] ) > 1 and ct > 0 :
@@ -320,7 +321,7 @@ class grafit(tk.Frame):
 
     def on_closing(self):
         for event in schedule.queue :
-          schedule.cancel(event)
+            schedule.cancel(event)
         saveFile.close()
         openshutter('',0.0)
         #os._exit(0)
@@ -373,26 +374,27 @@ class grafit(tk.Frame):
                 for iii in range(0,10) :
                     iodelay = 12
                     text = '*Initializing acquisition ---SHUTTER CLOSED--- '
+                    #print(text)
                     if isfibersave and root.graph.ctr > 0 and iii == 0 : 
                         text = '*Fiber-saving mode: ---SHUTTER CLOSED--- resume in '
-                        schedule.enter( total, 1, closeshutter, argument=(text,1.0) )
-                        text = '*Acquisition mode ---SHUTTER CLOSED--- capture background trace in '
-                        #if isfibersave and root.graph.ctr > 0 :
-                        #  text = '*Fiber-saving mode: ---SHUTTER CLOSED--- next acquisition in '
-                        total = total + 1 + dwellclosed
-                        schedule.enter( total, 1, root.graph.plotit, argument=(text,dwellclosed) )
-                        #total = total + iodelay
-                        total = total + 1 
-                        text = '*Capturing (signal+background) ---OPENING SHUTTER--- '
-                        schedule.enter( total, 1, openshutter, argument=(text,1.0) )
-                        text = 'Acquisition mode ---SHUTTER OPEN--- capture (signal+background) in '
-                        total = total + dwellopen 
-                        schedule.enter( total, 1, root.graph.plotit, argument=(text,dwellopen))
-                        #text = 'Acquisition mode ---SHUTTER OPEN--- capturing laser traces '
-                        total = total + 1 
-                        schedule.enter( total, 1, root.graph.plotit , argument = ('Getting UV Laser trace ',1.0,True) )
-                        total = total + 1 
-                        schedule.enter( total, 1, root.graph.plotit , argument = ('Getting IR Laser trace ',1.0,True) )
+                    schedule.enter( total, 1, closeshutter, argument=(text,1.0) )
+                    text = '*Acquisition mode ---SHUTTER CLOSED--- capture background trace in '
+                    #if isfibersave and root.graph.ctr > 0 :
+                    #  text = '*Fiber-saving mode: ---SHUTTER CLOSED--- next acquisition in '
+                    total = total + 1 + dwellclosed
+                    schedule.enter( total, 1, root.graph.plotit, argument=(text,dwellclosed) )
+                    #total = total + iodelay
+                    total = total + 1 
+                    text = '*Capturing (signal+background) ---OPENING SHUTTER--- '
+                    schedule.enter( total, 1, openshutter, argument=(text,1.0) )
+                    text = 'Acquisition mode ---SHUTTER OPEN--- capture (signal+background) in '
+                    total = total + dwellopen 
+                    schedule.enter( total, 1, root.graph.plotit, argument=(text,dwellopen))
+                    #text = 'Acquisition mode ---SHUTTER OPEN--- capturing laser traces '
+                    total = total + 1 
+                    schedule.enter( total, 1, root.graph.plotit , argument = ('Getting UV Laser trace ',1.0,True) )
+                    total = total + 1 
+                    schedule.enter( total, 1, root.graph.plotit , argument = ('Getting IR Laser trace ',1.0,True) )
                     if isfibersave and iii == 9 : 
                         text = '*Fiber-saving mode: ---CLOSING SHUTTER--- '
                         #print(text)
@@ -412,7 +414,7 @@ class grafit(tk.Frame):
             for event in schedule.queue :
                 schedule.cancel(event)
             saveFile.close()
-            os._exit(0)
+            #os._exit(0)
         self.parent.after(10, self.control)
 
     def __init__(self, parent):
@@ -579,6 +581,7 @@ schedule_start_time = time.time()
 root.graph.control()
 root.graph.ud()
 time.sleep(1.0)
+#scheduThread.setDaemon(True)
 scheduThread.setDaemon(True)
 scheduThread.start()
 root.mainloop()
