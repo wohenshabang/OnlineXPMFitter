@@ -1,4 +1,5 @@
 import tkinter as tk
+from tkinter import Canvas
 import socket, threading
 import time
 import numpy as np
@@ -424,17 +425,15 @@ class grafit(tk.Frame):
         self.nontopHat = []
 
         tk.Frame.__init__(self, parent)
-
         # Set up figure and plot
         #self.figure = Figure(figsize=(3, 5), dpi=100)
         #self.figure = Figure(figsize=(6, 5), dpi=100)
-
-        #I changed^^^
 
         #self.plt = self.figure.add_subplot(111)
 
         # Create parent, which is the class onlineXPMFitter from down below
         self.parent = parent
+        self.parent.configure(bg="lightgray") # set the background color
         #self.T = tk.Text(self.parent, height=1, width=5, font=("Courier", 64))
         #self.T.grid(row=0, column=1)
         #self.T.config(foreground="blue")
@@ -492,15 +491,40 @@ class grafit(tk.Frame):
         self.yar = []
         self.el = []
         self.eh = []
+	
+	# seconds to wait between captures
+        self.waitT_label = tk.Label(height=1, width=30)
+        self.waitT_label.config(text="Seconds to wait between captures")
+        self.waitT_label.grid(row=1, column=1)
+        '''
+        # initializing textbox value
+        self.value = tk.IntVar(value=33)
+	# up and down arrows
+        self.up_button = tk.Button(self, text='▲', command=self.increment)
+        self.down_button = tk.Button(self, text='▼', command=self.decrement)
+	# creating the text box
+        self.text_box = tk.Entry(self, textvariable=self.value)
+        self.text_box.bind('<Key>', self.filter_key) # filtering non numericals
+        # positioning
+        self.text_box.grid(row=2, column=2)
+        self.up_button.grid(row=6, column=1)
+        self.down_button.grid(row=7, column=1)
+        # packing up widgets
+        #self.up_button.pack(side=tk.LEFT)
+        #self.down_button.pack(side=tk.LEFT)
+        #self.text_box.pack(side=tk.LEFT)
+
+	# File path specification ( Text)
+        '''
 
         # next two lines are for the texbox for entries
         self.fileSaveInput = tk.Text( height=1, width=30, bg='gray') # text box( where user enters path)
         self.fileSaveInput.insert(tk.END,'testData')
-        self.fileSaveInput.grid( row=0, column=1)
+        self.fileSaveInput.grid( row=3, column=1)
 
-        # button to commit the save path
-        self.commitLocationButton = tk.Button(text="Commit Path", command=lambda:set_saveFile())
-        self.commitLocationButton.grid(row=0, column=2)
+        # button to commit the save path ( technically starts before)
+        self.commitLocationButton = tk.Button(text="Start", command=lambda:set_saveFile())
+        self.commitLocationButton.grid(row=3, column=2)
 
         # getting the input save path from user input in textbox
         def set_saveFile():
@@ -511,7 +535,7 @@ class grafit(tk.Frame):
 
             self.savePath=self.fileSaveInput.get('1.0', 'end-1c')
             self.currSavePath = tk.Label(height=1, width=30)
-            self.currSavePath.config(text="Save Path: " + self.savePath)
+            self.currSavePath.config(text="File Path: " + self.savePath)
             self.currSavePath.grid(row=2, column=1)
   
       # the file that the info will be saved to( open appropriate one when path is specified)
@@ -524,7 +548,7 @@ class grafit(tk.Frame):
             if( saveFile):
                 # button to close save file
                 self.fileCloseButton = tk.Button(text="Close File", command=lambda:close_saveFile())
-                self.fileCloseButton.grid(row=2, column=2)
+                self.fileCloseButton.grid(row=5, column=2)
 
         set_saveFile()
         # positioning of the graphs
@@ -541,13 +565,23 @@ class grafit(tk.Frame):
         self.plot_widget1 = self.canvas1.get_tk_widget()
         self.plot_widget2 = self.canvas2.get_tk_widget()
 
-        self.plot_widget1.grid(row=0, column=5)
-        self.plot_widget2.grid(row=0, column=6)
+        self.plot_widget1.grid(row=1, column=5)
+        self.plot_widget2.grid(row=1, column=6)
 
         # self.fig.canvas.draw()
 
         # self.plotter = threading.Thread(target=self.plotit)
         # self.plotter.setDaemon(True) # MAKES CODE THREAD SAFE
+
+    def increment(self):
+        self.value.set(self.value.get() + 1)
+
+    def decrement(self):
+        self.value.set(self.value.get() - 1)
+
+    def filter_key(self, event):
+        if not event.char.isdigit() and event.keysym not in ('BackSpace', 'Delete'):
+            return 'break'
 
 
 
@@ -560,13 +594,14 @@ class onlineXPMFitter(tk.Tk):
 
         # Set title and screen resolutions
         tk.Tk.wm_title(self, 'XPM Fitter')
-        tk.Tk.minsize(self, width=640, height=320)
+        tk.Tk.minsize(self, width=840, height=520)
         # Optional TODO: Set a custom icon for the XPM application
         # tk.Tk.iconbitmap(self, default="[example].ico")
 
         # Show window and control bar
         self.graph = grafit(self)
         # self.graph.pack(side='top', fill='both', expand=True)
+
 
 
 root = onlineXPMFitter()
