@@ -28,6 +28,83 @@ volt0 = []
 isfibersave = True
 total = 0.0
 
+'''
+class onlineXPMFitter(tk.Tk):
+    """ Class instance of main/root window. Mainly responsible for showing the
+        core components and setting other properties related to the main window."""
+
+    def __init__(self):
+        tk.Tk.__init__(self)
+
+        # Set title and screen resolutions
+        tk.Tk.wm_title(self, 'XPM Fitter')
+        tk.Tk.minsize(self, width=840, height=520)
+        # Optional TODO: Set a custom icon for the XPM application
+        # tk.Tk.iconbitmap(self, default="[example].ico")
+
+        # Show window and control bar
+        self.graph = grafit(self)
+        # self.graph.pack(side='top', fill='both', expand=True)
+
+    def control(self):
+        try :
+            global total
+            dwellclosed = 32.0
+            dwellopen = float(self.graph.waitT_input.get())
+            fibersavetime = 300.0 #for fibersave
+            tbc = dwellclosed
+            tf = 0
+            if len( schedule.queue ) == 0 or ( len(schedule.queue) == 7  and root.graph.ctr > 0 ) :
+                for iii in range(0,10) :
+                    iodelay = 12
+                    text = '*Initializing acquisition ---SHUTTER CLOSED--- '
+                    #print(text)
+                    if isfibersave and root.graph.ctr > 0 and iii == 0 :
+                        text = '*Fiber-saving mode: ---SHUTTER CLOSED--- resume in '
+                    schedule.enter( total, 1, closeshutter, argument=(text,1.0) )
+                    text = '*Acquisition mode ---SHUTTER CLOSED--- capture background trace in '
+                    #if isfibersave and root.graph.ctr > 0 :
+                    #  text = '*Fiber-saving mode: ---SHUTTER CLOSED--- next acquisition in '
+                    total = total + 1 + dwellclosed
+                    schedule.enter( total, 1, root.graph.plotit, argument=(text,dwellclosed) )
+                    #total = total + iodelay
+                    total = total + 1
+                    text = '*Capturing (signal+background) ---OPENING SHUTTER--- '
+                    schedule.enter( total, 1, openshutter, argument=(text,1.0) )
+                    text = 'Acquisition mode ---SHUTTER OPEN--- capture (signal+background) in '
+                    total = total + dwellopen
+                    schedule.enter( total, 1, self.graph.plotit, argument=(text,dwellopen))
+                    #text = 'Acquisition mode ---SHUTTER OPEN--- capturing laser traces '
+                    total = total + 1
+                    schedule.enter( total, 1, self.graph.plotit , argument = ('Getting UV Laser trace ',1.0,True) )
+                    total = total + 1
+                    schedule.enter( total, 1, self.graph.plotit , argument = ('Getting IR Laser trace ',1.0,True) )
+                    if isfibersave and iii == 9 :
+                        text = '*Fiber-saving mode: ---CLOSING SHUTTER--- '
+                        #print(text)
+                        total = total + 1
+                        schedule.enter( total, 1, closeshutter, argument=(text,1.0) )
+                        total = total + fibersavetime
+                    else :
+                        total = total + 1
+                        text = '*Acquisition mode ---CLOSING SHUTTER--- preparing next acquisition '
+                        schedule.enter( total, 1, closeshutter, argument=(text,1.0) )
+                        total = total + tbc
+                if isfibersave :
+                    total = fibersavetime
+                else :
+                    total = tbc
+        except Exception as exc :
+            for event in schedule.queue :
+                schedule.cancel(event)
+            saveFile.close()
+            #os._exit(0)
+        self.parent.after(10, self.control)
+
+
+root = onlineXPMFitter()
+'''
+
 def startSchedule():
     while len( schedule.queue ) < 63 :
       pass
@@ -363,11 +440,36 @@ class grafit(tk.Frame):
         y = y + offst
         return y
 
+    # getting the input save path from user input in textbox
+    def set_saveFile(graph):
+        root.control()    
+        def close_saveFile():
+            print('File closed')
+            saveFile.close()
+
+        root.graph.savePath=self.fileSaveInput.get('1.0', 'end-1c')
+        root.graph.currSavePath = tk.Label(height=1, width=30)
+        root.graph.currSavePath.config(text="File Path: " + root.graph.savePath)
+        root.graph.currSavePath.grid(row=2, column=1)
+
+    # the file that the info will be saved to( open appropriate one when path is specified)
+        global saveFile 
+        saveFile = open(r'%s' % (root.graph.savePath), "a")
+
+        #saveFile.write("Hello saveFile\n")
+
+    # if opened successfully, display file close button
+        if( saveFile):
+            # button to close save file
+            self.fileCloseButton = tk.Button(text="Close File", command=lambda:close_saveFile())
+            self.fileCloseButton.grid(row=5, column=2)
+
+    '''
     def control(self):
         try :
             global total
             dwellclosed = 32.0
-            dwellopen = 33.0
+            dwellopen = float(self.waitT_input.get())
             fibersavetime = 300.0 #for fibersave
             tbc = dwellclosed
             tf = 0 
@@ -417,6 +519,8 @@ class grafit(tk.Frame):
             saveFile.close()
             #os._exit(0)
         self.parent.after(10, self.control)
+    '''
+
 
     def __init__(self, parent):
         self.ctr = 0
@@ -496,26 +600,14 @@ class grafit(tk.Frame):
         self.waitT_label = tk.Label(height=1, width=30)
         self.waitT_label.config(text="Seconds to wait between captures")
         self.waitT_label.grid(row=1, column=1)
-        '''
-        # initializing textbox value
-        self.value = tk.IntVar(value=33)
-	# up and down arrows
-        self.up_button = tk.Button(self, text='▲', command=self.increment)
-        self.down_button = tk.Button(self, text='▼', command=self.decrement)
-	# creating the text box
-        self.text_box = tk.Entry(self, textvariable=self.value)
-        self.text_box.bind('<Key>', self.filter_key) # filtering non numericals
-        # positioning
-        self.text_box.grid(row=2, column=2)
-        self.up_button.grid(row=6, column=1)
-        self.down_button.grid(row=7, column=1)
-        # packing up widgets
-        #self.up_button.pack(side=tk.LEFT)
-        #self.down_button.pack(side=tk.LEFT)
-        #self.text_box.pack(side=tk.LEFT)
 
-	# File path specification ( Text)
-        '''
+
+        # seconds to wait input
+        defaultTime = tk.StringVar(self.parent)
+        defaultTime.set("33.0")
+        self.waitT_input = tk.Spinbox(self.parent, increment=1.0, background='white', textvariable=defaultTime)
+        self.waitT_input.grid(row=4, column=1)
+
 
         # next two lines are for the texbox for entries
         self.fileSaveInput = tk.Text( height=1, width=30, bg='gray') # text box( where user enters path)
@@ -523,12 +615,12 @@ class grafit(tk.Frame):
         self.fileSaveInput.grid( row=3, column=1)
 
         # button to commit the save path ( technically starts before)
-        self.commitLocationButton = tk.Button(text="Start", command=lambda:set_saveFile())
+        self.commitLocationButton = tk.Button(text="Start", command=lambda:set_saveFile(self))
         self.commitLocationButton.grid(row=3, column=2)
-
+        '''
         # getting the input save path from user input in textbox
         def set_saveFile():
-        
+            root.control()       
             def close_saveFile():
                 print('File closed')
                 saveFile.close()
@@ -549,6 +641,7 @@ class grafit(tk.Frame):
                 # button to close save file
                 self.fileCloseButton = tk.Button(text="Close File", command=lambda:close_saveFile())
                 self.fileCloseButton.grid(row=5, column=2)
+        '''
 
         set_saveFile()
         # positioning of the graphs
@@ -602,9 +695,84 @@ class onlineXPMFitter(tk.Tk):
         self.graph = grafit(self)
         # self.graph.pack(side='top', fill='both', expand=True)
 
+    def control(self):
+        try :
+            global total
+            dwellclosed = 32.0
+            dwellopen = float(self.graph.waitT_input.get())
+            fibersavetime = 300.0 #for fibersave
+            tbc = dwellclosed
+            tf = 0 
+            if len( schedule.queue ) == 0 or ( len(schedule.queue) == 7  and root.graph.ctr > 0 ) : 
+                for iii in range(0,10) :
+                    iodelay = 12
+                    text = '*Initializing acquisition ---SHUTTER CLOSED--- '
+                    #print(text)
+                    if isfibersave and root.graph.ctr > 0 and iii == 0 : 
+                        text = '*Fiber-saving mode: ---SHUTTER CLOSED--- resume in '
+                    schedule.enter( total, 1, closeshutter, argument=(text,1.0) )
+                    text = '*Acquisition mode ---SHUTTER CLOSED--- capture background trace in '
+                    #if isfibersave and root.graph.ctr > 0 :
+                    #  text = '*Fiber-saving mode: ---SHUTTER CLOSED--- next acquisition in '
+                    total = total + 1 + dwellclosed
+                    schedule.enter( total, 1, root.graph.plotit, argument=(text,dwellclosed) )
+                    #total = total + iodelay
+                    total = total + 1 
+                    text = '*Capturing (signal+background) ---OPENING SHUTTER--- '
+                    schedule.enter( total, 1, openshutter, argument=(text,1.0) )
+                    text = 'Acquisition mode ---SHUTTER OPEN--- capture (signal+background) in '
+                    total = total + dwellopen
+                    schedule.enter( total, 1, self.graph.plotit, argument=(text,dwellopen))
+                    #text = 'Acquisition mode ---SHUTTER OPEN--- capturing laser traces '
+                    total = total + 1 
+                    schedule.enter( total, 1, self.graph.plotit , argument = ('Getting UV Laser trace ',1.0,True) )
+                    total = total + 1 
+                    schedule.enter( total, 1, self.graph.plotit , argument = ('Getting IR Laser trace ',1.0,True) )
+                    if isfibersave and iii == 9 : 
+                        text = '*Fiber-saving mode: ---CLOSING SHUTTER--- '
+                        #print(text)
+                        total = total + 1 
+                        schedule.enter( total, 1, closeshutter, argument=(text,1.0) )
+                        total = total + fibersavetime
+                    else :
+                        total = total + 1 
+                        text = '*Acquisition mode ---CLOSING SHUTTER--- preparing next acquisition '
+                        schedule.enter( total, 1, closeshutter, argument=(text,1.0) )
+                        total = total + tbc 
+                if isfibersave :
+                    total = fibersavetime
+                else :
+                    total = tbc 
+        except Exception as exc :
+            for event in schedule.queue :
+                schedule.cancel(event)
+            saveFile.close()
+            #os._exit(0)
+        self.parent.after(10, self.control)
 
 
 root = onlineXPMFitter()
+'''
+class onlineXPMFitter(tk.Tk):
+    """ Class instance of main/root window. Mainly responsible for showing the
+        core components and setting other properties related to the main window."""
+
+    def __init__(self):
+        tk.Tk.__init__(self)
+
+        # Set title and screen resolutions
+        tk.Tk.wm_title(self, 'XPM Fitter')
+        tk.Tk.minsize(self, width=840, height=520)
+        # Optional TODO: Set a custom icon for the XPM application
+        # tk.Tk.iconbitmap(self, default="[example].ico")
+
+        # Show window and control bar
+        self.graph = grafit(self)
+        # self.graph.pack(side='top', fill='both', expand=True)
+'''
+
+
+#root = onlineXPMFitter()
 #root.graph.plotit()
 #fitScheduler(root.graph)
 #print('fit' +str(schedule.queue[:][0]))
@@ -613,7 +781,7 @@ scheduThread = threading.Thread(target=startSchedule)
 schedule_start_time = time.time()
 #controlThread.setDaemon(True)
 #controlThread.start()
-root.graph.control()
+#root.graph.control()
 root.graph.ud()
 time.sleep(1.0)
 #scheduThread.setDaemon(True)
