@@ -64,8 +64,8 @@ class grafit(tk.Frame):
 
     def captureRaw(self):
         data = ''
-        f = urllib.request.urlopen('http://localhost:5022/?COMMAND=curve?')
-        # f = urllib.request.urlopen('http://134.79.229.21/?COMMAND=curve?')
+        #f = urllib.request.urlopen('http://localhost:5022/?COMMAND=curve?')
+        f = urllib.request.urlopen('http://134.79.229.21/?COMMAND=curve?')
         data = f.read().decode()
         print('received ' + data)
 
@@ -73,8 +73,8 @@ class grafit(tk.Frame):
         # print(len(wfm))
 
         # CALLING WFMPRE TO CONVERT WFM TO MS AND VOLTS
-        f2 = urllib.request.urlopen('http://localhost:5022/?COMMAND=wfmpre?')
-        # f2 = urllib.request.urlopen('http://134.79.229.21/?COMMAND=wfmpre?')
+        #f2 = urllib.request.urlopen('http://localhost:5022/?COMMAND=wfmpre?')
+        f2 = urllib.request.urlopen('http://134.79.229.21/?COMMAND=wfmpre?')
         wfmpre = f2.read().decode()
         # print(wfmpre)
 
@@ -111,8 +111,8 @@ class grafit(tk.Frame):
         if islaser : #FIXME: the laser traces shouldn't just be getting ignored
           return
         data = ''
-        f = urllib.request.urlopen('http://localhost:5022/?COMMAND=curve?')
-        # f = urllib.request.urlopen('http://134.79.229.21/?COMMAND=curve?')
+        #f = urllib.request.urlopen('http://localhost:5022/?COMMAND=curve?')
+        f = urllib.request.urlopen('http://134.79.229.21/?COMMAND=curve?')
         data = f.read().decode()
         print('received ' + data)
 
@@ -120,8 +120,8 @@ class grafit(tk.Frame):
         # print(len(wfm))
 
         # CALLING WFMPRE TO CONVERT WFM TO MS AND VOLTS
-        f2 = urllib.request.urlopen('http://localhost:5022/?COMMAND=wfmpre?')
-        # f2 = urllib.request.urlopen('http://134.79.229.21/?COMMAND=wfmpre?')
+        #f2 = urllib.request.urlopen('http://localhost:5022/?COMMAND=wfmpre?')
+        f2 = urllib.request.urlopen('http://134.79.229.21/?COMMAND=wfmpre?')
         wfmpre = f2.read().decode()
 
         # EXAMPLE WFMPRE:
@@ -417,7 +417,10 @@ class grafit(tk.Frame):
         self.start_time = time.time()
         self.topHat = []
         self.nontopHat = []
-        self.saveFile = open('/dev/null','r')
+        try:
+                self.saveFile = open('/dev/null','r')
+        except:
+                self.saveFile = open('NUL','r')
         tk.Frame.__init__(self, parent)
         # Set up figure and plot
         #self.figure = Figure(figsize=(3, 5), dpi=100)
@@ -431,7 +434,7 @@ class grafit(tk.Frame):
         #self.T = tk.Text(self.parent, height=1, width=5, font=("Courier", 64))
         #self.T.grid(row=0, column=1)
         #self.T.config(foreground="blue")
-        self.isStandard = False
+        self.isStandard = True
 
         if self.isStandard :
           self.p_i = [49.98262, 46.10659, 10.0, 1.0, 2.9, 81.9, 395.3, 0.8, 0.9, 43.619015]
