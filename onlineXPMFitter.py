@@ -30,9 +30,9 @@ total = 0.0
 
 
 def startSchedule():
-    while len( schedule.queue ) < 63 :
-      pass
+    #print('running schedule')
     schedule.run()
+    #print('finished schedule')
     return
 
 def closeshutter(text,dwell) :
@@ -40,6 +40,7 @@ def closeshutter(text,dwell) :
     (WindowsPath.home() / '.shutterclosed').touch()
   except:
     Path('/tmp/.shutterclosed').touch()
+  #print('closed it')
   return
 
 def openshutter(text,dwell) :
@@ -64,8 +65,8 @@ class grafit(tk.Frame):
 
     def captureRaw(self):
         data = ''
-        #f = urllib.request.urlopen('http://localhost:5022/?COMMAND=curve?')
-        f = urllib.request.urlopen('http://134.79.229.21/?COMMAND=curve?')
+        f = urllib.request.urlopen('http://localhost:5022/?COMMAND=curve?')
+        #f = urllib.request.urlopen('http://134.79.229.21/?COMMAND=curve?')
         data = f.read().decode()
         print('received ' + data)
 
@@ -73,8 +74,8 @@ class grafit(tk.Frame):
         # print(len(wfm))
 
         # CALLING WFMPRE TO CONVERT WFM TO MS AND VOLTS
-        #f2 = urllib.request.urlopen('http://localhost:5022/?COMMAND=wfmpre?')
-        f2 = urllib.request.urlopen('http://134.79.229.21/?COMMAND=wfmpre?')
+        f2 = urllib.request.urlopen('http://localhost:5022/?COMMAND=wfmpre?')
+        #f2 = urllib.request.urlopen('http://134.79.229.21/?COMMAND=wfmpre?')
         wfmpre = f2.read().decode()
         # print(wfmpre)
 
@@ -108,11 +109,12 @@ class grafit(tk.Frame):
         return
 
     def plotit(self,  text='' , dwell=0.0 , islaser=False ):
+        #print('plotit, lets goooooooooo')
         if islaser : #FIXME: the laser traces shouldn't just be getting ignored
           return
         data = ''
-        #f = urllib.request.urlopen('http://localhost:5022/?COMMAND=curve?')
-        f = urllib.request.urlopen('http://134.79.229.21/?COMMAND=curve?')
+        f = urllib.request.urlopen('http://localhost:5022/?COMMAND=curve?')
+        #f = urllib.request.urlopen('http://134.79.229.21/?COMMAND=curve?')
         data = f.read().decode()
         print('received ' + data)
 
@@ -120,8 +122,8 @@ class grafit(tk.Frame):
         # print(len(wfm))
 
         # CALLING WFMPRE TO CONVERT WFM TO MS AND VOLTS
-        #f2 = urllib.request.urlopen('http://localhost:5022/?COMMAND=wfmpre?')
-        f2 = urllib.request.urlopen('http://134.79.229.21/?COMMAND=wfmpre?')
+        f2 = urllib.request.urlopen('http://localhost:5022/?COMMAND=wfmpre?')
+        #f2 = urllib.request.urlopen('http://134.79.229.21/?COMMAND=wfmpre?')
         wfmpre = f2.read().decode()
 
         # EXAMPLE WFMPRE:
@@ -286,10 +288,11 @@ class grafit(tk.Frame):
         try :
             #print('schedule length',len(schedule.queue))
             if len( schedule.queue ) > 0 :
-                ct = int((schedule.queue[0][0] - time.time())*100)
-            if len( schedule.queue[0][3] ) > 1 and ct > 0 :
-                print(schedule.queue[0][3][0]+str(ct/100)+' sec')
-            if len( schedule.queue[0][3] ) == 0 :
+                ct = int((schedule.queue[0].time - time.time())*100)
+                #print(ct)
+            if len( schedule.queue[0].argument[0] ) > 1 and ct > 0 :
+                print(schedule.queue[0].argument[0]+str(ct/100)+' sec')
+            if len( schedule.queue[0].argument[0] ) == 0 :
                 print('Busy...Downloading waveforms...')
         except Exception as exc:
             for event in schedule.queue :
@@ -411,6 +414,9 @@ class grafit(tk.Frame):
         # the file that the info will be saved to( open appropriate one when path is specified) 
         self.saveFile = open(r'%s' % (self.savePath), "a")
         #saveFile.write("Hello saveFile\n")
+        self.scheduThread.start()
+
+        
 
     def __init__(self, parent):
         self.ctr = 0
@@ -435,6 +441,9 @@ class grafit(tk.Frame):
         #self.T.grid(row=0, column=1)
         #self.T.config(foreground="blue")
         self.isStandard = True
+        self.scheduThread = threading.Thread(target=startSchedule)
+        self.scheduThread.daemon = True
+
 
         if self.isStandard :
           self.p_i = [49.98262, 46.10659, 10.0, 1.0, 2.9, 81.9, 395.3, 0.8, 0.9, 43.619015]
@@ -558,15 +567,15 @@ class onlineXPMFitter(tk.Tk):
 
         # Show window and control bar
         self.graph = grafit(self)
+        schedule_start_time = time.time()
+        self.graph.ud()
+        time.sleep(1.0)
+
         # self.graph.pack(side='top', fill='both', expand=True)
 
 root = onlineXPMFitter()
 
-scheduThread = threading.Thread(target=startSchedule)
-schedule_start_time = time.time()
-root.graph.ud()
-time.sleep(1.0)
+
 #scheduThread.setDaemon(True)
-scheduThread.setDaemon(True)
-scheduThread.start()
+#scheduThread.setDaemon(True)
 root.mainloop()
