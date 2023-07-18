@@ -1,4 +1,5 @@
 import tkinter as tk
+import csv
 from tkinter import Canvas
 import socket, threading
 import time
@@ -10,6 +11,7 @@ from matplotlib.backends.backend_tkagg import (FigureCanvasTkAgg, NavigationTool
 import urllib.request
 import os
 from pathlib import WindowsPath, Path
+from scipy.special import wofz
 from lmfit.models import SkewedVoigtModel
 from lmfit.models import ExponentialGaussianModel
 from lmfit import Model
@@ -18,9 +20,19 @@ from scipy import integrate
 from scipy.special import erfc
 from uncertainties.core import wrap
 import sched
-import csv
+from WF_SDK import device, scope, wavegen
 
-schedule = sched.scheduler(time.time, time.sleep)
+try:
+  device_data = device.open()     #if the AD2 is connected
+  is_connected = True
+  print('AD2 connected\n')
+except:     # if it isn't open, we want to ignore the code that handles it. i would make this nicer if i could find the wf_sdk docs
+  is_connected = False
+  print('AD2 not found\n')
+  pass 
+
+
+schedule = sched.scheduler(time.time, time.sleep)   # is generating a 0-element array
 schedule_start_time = 0.0
 eventList = []
 time0 = []
@@ -28,30 +40,54 @@ volt0 = []
 isfibersave = True
 total = 0.0
 
-
 def startSchedule():
     #print('running schedule')
     schedule.run()
     #print('finished schedule')
     return
 
-def closeshutter(text,dwell) :
+def closeshutter(text,dwell) :  #energizing
   try:
-    (WindowsPath.home() / '.shutterclosed').touch()
+    (WindowsPath.home() / '.shutterclosed').touch()     #creates a temporary file "shutterclosed"
   except:
-    Path('/tmp/.shutterclosed').touch()
+    Path('/tmp/.shutterclosed').touch() # for non-Windows machines
   #print('closed it')
+  
+  if is_connected: # if AD2 was connected. if not, just ignore the rest of this func
+    print('Energizing')
+    listoftimes = [0.25, 0.1]   # hardcoding the trial-and-error values from shutterGUI.py
+	# code for energizing - adapted from shutterGUI.py
+    #energized = True
+    for index in range(0, len(listoftimes), 2):
+        wavegen.generate(device_data, channel=2, function=wavegen.function.sine, offset=4.98, frequency=1e02,
+	      amplitude=0.02)
+        time.sleep(listoftimes[index])
+        wavegen.generate(device_data, channel=2, function=wavegen.function.sine, offset=0.02, frequency=1e02,
+	      amplitude=0.02)
+        time.sleep(listoftimes[index + 1])
   return
 
-def openshutter(text,dwell) :
+def openshutter(text,dwell) :   #deenergizing
   try:
-    pathExists = (WindowsPath.home() / '.shutterclosed').exists()
+    pathExists = (WindowsPath.home() / '.shutterclosed').exists()       #deletes temp file
     if pathExists == True:
-      (WindowsPath.home() / '.shutterclosed').unlink()
+      (WindowsPath.home() / '.shutterclosed').unlink()  
   except:
     pathExists = Path('/tmp/.shutterclosed').exists()
     if pathExists == True:
       Path('/tmp/.shutterclosed').unlink()
+
+      # deenergizing - adapted from shutterGUI.py
+  if is_connected:
+    print('De-energizing')
+    listoftimes = [0.25, 0.4] 
+    for index in range(0, len(listoftimes), 2):
+      wavegen.generate(device_data, channel=2, function=wavegen.function.sine, offset=0.02, frequency=1e02,
+        amplitude=0.02)
+      time.sleep(listoftimes[index])
+      wavegen.generate(device_data, channel=2, function=wavegen.function.sine, offset=4.98, frequency=1e02,
+        amplitude=0.02)
+      time.sleep(listoftimes[index + 1])
   return
 
 
@@ -65,7 +101,7 @@ class grafit(tk.Frame):
 
     def captureRaw(self):
         data = ''
-        f = urllib.request.urlopen('http://localhost:5022/?COMMAND=curve?')
+        f = urllib.request.urlopen('http://localhost:5022/?COMMAND=curve?') # connects to XPMSimulator.py
         #f = urllib.request.urlopen('http://134.79.229.21/?COMMAND=curve?')
         data = f.read().decode()
         print('received ' + data)
@@ -109,7 +145,7 @@ class grafit(tk.Frame):
         return
 
     def plotit(self,  text='' , dwell=0.0 , islaser=False ):
-        #print('plotit, lets goooooooooo')
+        #should we still be using the sim if the ad2 is connected? 
         if islaser : #FIXME: the laser traces shouldn't just be getting ignored
           return
         data = ''
@@ -178,10 +214,11 @@ class grafit(tk.Frame):
             # print('results--->', result.ci_out)
             catrow = (ci_txt.split('\n')[1].split(':')[1])
             anrow = (ci_txt.split('\n')[2].split(':')[1])
-            offstrow = (ci_txt.split('\n')[3].split(':')[1])
+            #offstrow = (ci_txt.split('\n')[3].split(':')[1]) #this is causing an error and i don't think the data itself is actually used for anything?
+            offstrow = '\n' # spacer
             cat = b['cat']
             an = b['an']
-            offst = b['offst']
+            offst = b['offst'] 
             cat_ll = cat + np.fromstring(catrow,dtype=float,sep=' ')[2]
             cat_ul = cat + np.fromstring(catrow,dtype=float,sep=' ')[4]
             an_ll = an + np.fromstring(anrow,dtype=float,sep=' ')[2]
@@ -243,7 +280,7 @@ class grafit(tk.Frame):
             # self.plt.subplot(212)
             self.plt1.plot(t, wvPlot, 'g-')
             tfine = np.arange(t[0], t[-1] + 0.8, (t[1] - t[0]) / 10.0)
-             
+            
             if self.isStandard :
                 #self.plt1.plot(tfine,
                 #               self.wavmodel.eval(x=tfine, an=b['an'], cat=b['cat'], tcrise=b['tcrise'],
@@ -252,10 +289,13 @@ class grafit(tk.Frame):
                                self.wavmodel.eval(x=tfine, cat=cat, an=an, tcrise=b['tcrise'],
                                tarise=b['tarise'], offst=offst, thold=b['thold'] ), 'r-', label='standard')
             else :
-                self.plt1.plot(tfine,
-                               self.wavmodel.eval(x=tfine, an=b['an'], cat=b['cat'], cent_c=b['cent_c'], tcrise=b['tcrise'],
-                               tarise=b['tarise'], cent_a=b['cent_a'], gam_a=b['gam_a'],
-                               gam_c=b['gam_c'], skew_a=b['skew_a'], offst=b['offst']), 'r-', label='proposed: an=42.04 mV')
+                #self.plt1.plot(tfine,
+                #               self.wavmodel.eval(x=tfine, an=b['an'], cat=b['cat'], cent_c=b['cent_c'], tcrise=b['tcrise'],
+                #               tarise=b['tarise'], cent_a=b['cent_a'], gam_a=b['gam_a'],
+                #               gam_c=b['gam_c'], skew_a=b['skew_a'], offst=b['offst']), 'r-', label='proposed: an=42.04 mV')
+                self.plt1.plot(tfine, # i think this is where it's getting hung up?
+                               self.wavmodel.eval(x=tfine, cat=cat, an=an, sig_c=b['sig_c'], gam_c=b['gam_c'], 
+                               sig_a=b['sig_a'], skew_c=b['skew_c'], skew_a=b['skew_a'], offst=b['offst']), 'r-', label='new voigt')
 
             self.plt1.set_title("Most recent waveform")
             self.plt1.set_ylabel("MilliVolts")
@@ -294,11 +334,12 @@ class grafit(tk.Frame):
                 print(schedule.queue[0].argument[0]+str(ct/100)+' sec')
             if len( schedule.queue[0].argument[0] ) == 0 :
                 print('Busy...Downloading waveforms...')
-        except Exception as exc:
+        except Exception as exc: # ???
+            print(exc)
             for event in schedule.queue :
                 schedule.cancel(event)
             self.saveFile.close()
-            openshutter('',0.0)
+            #openshutter('',0.0)
             #os._exit(0)
         self.parent.after(1000,self.ud)
 
@@ -344,11 +385,31 @@ class grafit(tk.Frame):
         y = y - integral_a * np.exp(-(x - 81.9) / 395.3)
         y = y + offst
         return y
+    
+    def skewVoigtC_skewVoigtA_yesGamma (self, x, cat, sig_c, gam_c, skew_c, an, sig_a, skew_a,offst):
+        CF = 1.0  # feedback capacitance (not really 1, but it doesn't really matter anyway since it will divide out,
+                  # it's just here to turn voltage into charge in the equation)
+        ta = 81.9 # where t = 1 on the anode
+        tc = 10.0 # where t = 1 on the cathode
+        sqrt2 = np.sqrt(2.0)
+        sqrt2pi = np.sqrt(2.0*np.pi)
+        thold = 395.3 
+        z_a = (x - ta + sig_a*1j)/(sig_a*sqrt2) 
+        realw_a = an*np.real(wofz(z_a))/(sqrt2pi*sig_a) 
+        i_a = (realw_a)*(2.0/(1.0+np.exp((ta-x)/skew_a))) # multiply everything by the Fermi function before putting it into the integral
+        anode = -(1.0/CF)*np.exp(-(x-ta)/thold)*integrate.cumulative_trapezoid( np.exp((x-ta)/thold)*i_a, x, initial=0.0)
+
+        z_c = (x - tc + gam_c*1j)/(sig_c*sqrt2)
+        realw_c = -cat*np.real(wofz(z_c))/(sqrt2pi*sig_c)
+        i_c = (realw_c)*(2.0/(1.0+np.exp((tc-x)/skew_c)))
+        cathode = -(1.0/CF)*np.exp(-(x-tc)/thold)*integrate.cumulative_trapezoid( np.exp((x-tc)/thold)*i_c, x, initial=0.0)
+
+        return cathode + anode + offst
 
     def control(self):
         try :
             global total
-            dwellclosed = 32.0
+            dwellclosed = 32.0 ### 32.0
             dwellopen = float(self.waitT_input.get())
             fibersavetime = 300.0 #for fibersave
             tbc = dwellclosed
@@ -440,7 +501,7 @@ class grafit(tk.Frame):
         #self.T = tk.Text(self.parent, height=1, width=5, font=("Courier", 64))
         #self.T.grid(row=0, column=1)
         #self.T.config(foreground="blue")
-        self.isStandard = True
+        self.isStandard = False
         self.scheduThread = threading.Thread(target=startSchedule)
         self.scheduThread.daemon = True
 
@@ -462,7 +523,7 @@ class grafit(tk.Frame):
           self.wavparams['offst'].value = self.p_i[9]
           self.wavparams['offst'].vary = True
         else :
-          self.p_i = [37.873185672822736, 40.81570955383812, 10.0, 3.598, 0.980325759727434, 81.9, 1.80825, 0.8, 0.9, 0.2]
+          """ self.p_i = [37.873185672822736, 40.81570955383812, 10.0, 3.598, 0.980325759727434, 81.9, 1.80825, 0.8, 0.9, 0.2]
           self.wavmodel = Model(self.extra_smeared, nan_policy='raise')
           self.wavparams = self.wavmodel.make_params()
           self.wavparams['cat'].value = self.p_i[0]
@@ -486,6 +547,24 @@ class grafit(tk.Frame):
           self.wavparams['gam_c'].value = self.p_i[8]
           self.wavparams['gam_c'].vary = False
           self.wavparams['offst'].value = self.p_i[9]
+          self.wavparams['offst'].vary = True """
+          self.wavmodel = Model(self.skewVoigtC_skewVoigtA_yesGamma,nan_policy='raise')
+          self.wavparams = self.wavmodel.make_params()
+          self.wavparams['cat'].value = 30.0   # formerly qc
+          self.wavparams['cat'].vary = True
+          self.wavparams['sig_c'].value = 1.99877086
+          self.wavparams['sig_c'].vary = False
+          self.wavparams['gam_c'].value = 0.48781508
+          self.wavparams['gam_c'].vary = False
+          self.wavparams['skew_c'].value = 8.21680391
+          self.wavparams['skew_c'].vary = False
+          self.wavparams['an'].value = 15.0     # formerly qa
+          self.wavparams['an'].vary = True
+          self.wavparams['sig_a'].value = 0.76546294
+          self.wavparams['sig_a'].vary = False
+          self.wavparams['skew_a'].value = 2.81726754
+          self.wavparams['skew_a'].vary = False
+          self.wavparams['offst'].value = 0.5768164
           self.wavparams['offst'].vary = True
         
         self.pkmodel = SkewedVoigtModel()
@@ -505,7 +584,7 @@ class grafit(tk.Frame):
 
         # seconds to wait input
         defaultTime = tk.StringVar(self.parent)
-        defaultTime.set('33.0')
+        defaultTime.set('33.0')  ### 33.0
         self.waitT_input = tk.Spinbox(self.parent, increment=1.0, foreground='black', background='white', textvariable=defaultTime)
         self.waitT_input.grid(row=4, column=1)
 
